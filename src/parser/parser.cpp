@@ -5,6 +5,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <unordered_map>
+#include <string>
 
 #include "../design/design.hpp"
 
@@ -14,9 +15,6 @@ void Parser::parse(const std::string& filename, Design& design) {
     throw std::runtime_error("Error: Could not open file " + filename);
   }
 
-  // ==========================================
-  // Read Header
-  // ==========================================
   int rows = 0, cols = 0;
   int num_logic_blocks = 0;
   int num_io_pins = 0;
@@ -29,18 +27,12 @@ void Parser::parse(const std::string& filename, Design& design) {
 
   design.set_chip_dimensions(cols, rows);
 
-  // ==========================================
-  // Build lookup table
-  // ==========================================
   std::unordered_map<std::string, LogicBlock*> blockMap;
   blockMap.reserve(num_logic_blocks);
 
   std::unordered_map<std::string, IOPin*> pinMap;
   pinMap.reserve(num_io_pins);
 
-  // ==========================================
-  // Read Logic Blocks
-  // ==========================================
   for (int i = 0; i < num_logic_blocks; ++i) {
     std::string name;
     infile >> name;
@@ -52,9 +44,6 @@ void Parser::parse(const std::string& filename, Design& design) {
     blockMap[name] = newBlock;
   }
 
-  // ==========================================
-  // Read IO Pins
-  // ==========================================
   for (int i = 0; i < num_io_pins; ++i) {
     std::string name;
     double x, y;
@@ -67,9 +56,6 @@ void Parser::parse(const std::string& filename, Design& design) {
     pinMap[name] = newPin;
   }
 
-  // ==========================================
-  // Read Nets
-  // ==========================================
   for (int i = 0; i < num_nets; ++i) {
     std::string name;
     int degree;

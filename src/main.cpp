@@ -17,10 +17,10 @@ int main(int argc, char *argv[])
     std::string outputFile = argv[2];
     Design design;
     Parser::parse(inputFile, design);
-    Placer::init_place(design);
-    double congestion_coefficient = Placer::calc_congestion_coefficient(design);
+    Placer::InitPlace(design);
+    double congestion_coefficient = Placer::CalculateCongestionCoefficient(design);
     std::cout << "Congestion Coefficient: " << congestion_coefficient << std::endl;
-    double initial_HPWL = Placer::calc_HPWL(design);
+    double initial_HPWL = Placer::CalculateHPWL(design);
     std::cout << "Initial HPWL: " << initial_HPWL << std::endl;
     Writer::write(outputFile, design);
     auto endTime = std::chrono::high_resolution_clock::now();

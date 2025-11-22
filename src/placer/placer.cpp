@@ -6,17 +6,15 @@
 #include <limits>
 #include <vector>
 
-#include "../design/design.hpp"  // 必須包含，因為要使用 Design 的函式
+#include "../design/design.hpp"
 
 void Placer::InitPlace(Design& design) {
   int current_x = 0;
   int current_y = 0;
-  int chip_w = design.chip_width();   // 使用 Getter
-  int chip_h = design.chip_height();  // 使用 Getter
+  int chip_w = design.chip_width();
+  int chip_h = design.chip_height();
 
-  // 使用 Getter 取得 vector
   for (auto block : design.logic_blocks()) {
-    // 使用 Setter 設定座標
     block->set_x(current_x);
     block->set_y(current_y);
 
@@ -38,7 +36,6 @@ void Placer::InitPlace(Design& design) {
 double Placer::CalculateHPWL(const Design& design) {
   double total_hpwl = 0;
 
-  // 使用 Getter 取得 nets
   for (const auto& net : design.nets()) {
     double min_x = std::numeric_limits<double>::max();
     double max_x = std::numeric_limits<double>::lowest();
@@ -47,24 +44,19 @@ double Placer::CalculateHPWL(const Design& design) {
 
     bool has_terminals = false;
 
-    // 1. 遍歷 Block
     for (auto block : net->blocks()) {
       has_terminals = true;
-      // 使用 Getter
       double bx = static_cast<double>(block->x());
       double by = static_cast<double>(block->y());
 
-      // Block 佔據 (x, y) 到 (x+1, y+1)
       if (bx < min_x) min_x = bx;
       if ((bx + 1.0) > max_x) max_x = bx + 1.0;
       if (by < min_y) min_y = by;
       if ((by + 1.0) > max_y) max_y = by + 1.0;
     }
 
-    // 2. 遍歷 Pin
     for (auto pin : net->pins()) {
       has_terminals = true;
-      // 使用 Getter (注意：pin->x() 已經是 double 了)
       double px = pin->x();
       double py = pin->y();
 
@@ -85,12 +77,10 @@ double Placer::CalculateHPWL(const Design& design) {
 double Placer::CalculateCongestionCoefficient(const Design& design) {
   int rows = design.chip_height();
   int cols = design.chip_width();
-  long long n_sites = (long long)rows * cols;  // 總格子數
+  long long n_sites = (long long)rows * cols;
 
   if (n_sites == 0) return 0.0;
 
-  // 建立 2D 陣列計算覆蓋率 (Coverage)
-  // U[x][y]
   std::vector<std::vector<int>> usage(cols, std::vector<int>(rows, 0));
 
   for (const auto& net : design.nets()) {
@@ -100,8 +90,6 @@ double Placer::CalculateCongestionCoefficient(const Design& design) {
     double max_y = std::numeric_limits<double>::lowest();
 
     bool has_terminals = false;
-
-    // --- 計算 Bounding Box (邏輯同 HPWL) ---
     for (auto block : net->blocks()) {
       has_terminals = true;
       double bx = static_cast<double>(block->x());
@@ -126,8 +114,6 @@ double Placer::CalculateCongestionCoefficient(const Design& design) {
 
     if (!has_terminals) continue;
 
-    // --- 更新 Usage ---
-    // 根據規格書算法: x_min <= x < x_max
     int start_x = std::max(0, (int)std::ceil(min_x));
     int start_y = std::max(0, (int)std::ceil(min_y));
 
@@ -138,7 +124,6 @@ double Placer::CalculateCongestionCoefficient(const Design& design) {
     }
   }
 
-  // --- 計算 CC ---
   double sum_u = 0.0;
   double sum_sq_u = 0.0;
 
@@ -160,15 +145,9 @@ double Placer::CalculateCongestionCoefficient(const Design& design) {
 }
 
 void Placer::Run(Design& design) {
-  // 1. 先做初始擺放
   InitPlace(design);
-
-  // 2. 印出初始分數
   double hpwl = CalculateHPWL(design);
   double cc = CalculateCongestionCoefficient(design);
-
   std::cout << "Initial HPWL: " << hpwl << std::endl;
   std::cout << "Initial Congestion: " << cc << std::endl;
-
-  // TODO: 這裡之後要實作你的核心演算法 (例如 Simulated Annealing)
 }
