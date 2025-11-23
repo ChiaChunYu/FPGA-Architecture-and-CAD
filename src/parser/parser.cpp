@@ -5,7 +5,6 @@
 #include <sstream>
 #include <stdexcept>
 #include <unordered_map>
-#include <string>
 
 #include "../design/design.hpp"
 
@@ -20,8 +19,7 @@ void Parser::parse(const std::string& filename, Design& design) {
   int num_io_pins = 0;
   int num_nets = 0;
 
-  if (!(infile >> rows >> cols >> num_logic_blocks >> num_io_pins >>
-        num_nets)) {
+  if (!(infile >> rows >> cols >> num_logic_blocks >> num_io_pins >> num_nets)) {
     throw std::runtime_error("Error: Invalid header format in " + filename);
   }
 
@@ -75,8 +73,7 @@ void Parser::parse(const std::string& filename, Design& design) {
         newNet->AddPin(pin);
         pin->AddNet(newNet);
       } else {
-        throw std::runtime_error("Error: Unknown terminal '" + termName +
-                                 "' in net '" + name + "'");
+        throw std::runtime_error("Error: Unknown terminal '" + termName + "' in net '" + name + "'");
       }
     }
     design.AddNet(newNet);

@@ -1,153 +1,169 @@
 #include "placer.hpp"
 
 #include <algorithm>
+#include <chrono>
 #include <cmath>
+#include <cstdlib>
+#include <ctime>
+#include <iomanip>
 #include <iostream>
-#include <limits>
 #include <vector>
 
 #include "../design/design.hpp"
 
+const double TIME_LIMIT_SECONDS = 200.0;
+
+double Placer::CalculateHPWL(const Design& design) {
+  return design.CalculateTotalHPWL();
+}
+
+double Placer::CalculateCongestionCoefficient(const Design& design) {
+  return design.CalculateCongestionCoefficient();
+}
+
 void Placer::InitPlace(Design& design) {
   int current_x = 0;
   int current_y = 0;
-  int chip_w = design.chip_width();
-  int chip_h = design.chip_height();
+  int chip_width = design.chip_width();
+  int chip_height = design.chip_height();
 
   for (auto block : design.logic_blocks()) {
     block->set_x(current_x);
     block->set_y(current_y);
-
     current_x++;
-    if (current_x >= chip_w) {
+    if (current_x >= chip_width) {
       current_x = 0;
       current_y++;
-    }
-
-    if (current_y >= chip_h) {
-      std::cerr << "Error: Not enough space on FPGA to place all blocks!"
-                << std::endl;
-      break;
     }
   }
   std::cout << "Initial placement completed." << std::endl;
 }
 
-double Placer::CalculateHPWL(const Design& design) {
-  double total_hpwl = 0;
+void Placer::RunSA(Design& design) {
+  std::cout << "[SA] Starting Simple SA (No Cache, Direct Calculation)..." << std::endl;
 
-  for (const auto& net : design.nets()) {
-    double min_x = std::numeric_limits<double>::max();
-    double max_x = std::numeric_limits<double>::lowest();
-    double min_y = std::numeric_limits<double>::max();
-    double max_y = std::numeric_limits<double>::lowest();
+  Placer::InitPlace(design);
+  std::srand(static_cast<unsigned>(std::time(nullptr)));
+  auto sa_start_time = std::chrono::steady_clock::now();
 
-    bool has_terminals = false;
+  int chip_width = design.chip_width();
+  int chip_height = design.chip_height();
 
-    for (auto block : net->blocks()) {
-      has_terminals = true;
-      double bx = static_cast<double>(block->x());
-      double by = static_cast<double>(block->y());
-
-      if (bx < min_x) min_x = bx;
-      if ((bx + 1.0) > max_x) max_x = bx + 1.0;
-      if (by < min_y) min_y = by;
-      if ((by + 1.0) > max_y) max_y = by + 1.0;
+  std::vector<std::vector<LogicBlock*>> grid(chip_width, std::vector<LogicBlock*>(chip_height, nullptr));
+  for (auto block : design.logic_blocks()) {
+    if (block->x() < chip_width && block->y() < chip_height) {
+      grid[block->x()][block->y()] = block;
     }
-
-    for (auto pin : net->pins()) {
-      has_terminals = true;
-      double px = pin->x();
-      double py = pin->y();
-
-      if (px < min_x) min_x = px;
-      if (px > max_x) max_x = px;
-      if (py < min_y) min_y = py;
-      if (py > max_y) max_y = py;
-    }
-
-    if (!has_terminals) continue;
-
-    double hpwl = (max_x - min_x) + (max_y - min_y);
-    total_hpwl += hpwl;
   }
-  return total_hpwl;
-}
 
-double Placer::CalculateCongestionCoefficient(const Design& design) {
-  int rows = design.chip_height();
-  int cols = design.chip_width();
-  long long n_sites = (long long)rows * cols;
+  int round_count = 0;
+  double current_total_hpwl = design.CalculateTotalHPWL();
+  double current_congestion_coefficient = design.CalculateCongestionCoefficient();
+  double current_cost = current_total_hpwl * current_congestion_coefficient;
+  std::cout << "[SA] Init Cost: " << current_cost << " | HPWL: " << current_total_hpwl << " | CC: " << current_congestion_coefficient << std::endl;
 
-  if (n_sites == 0) return 0.0;
+  // SA Parameters
+  double temperature = current_cost / 20.0;
+  double min_temperature = 1e-5;
+  int moves_per_temperature = 10 * design.logic_blocks().size();
+  // int moves_per_temperature = 15 * std::pow(design.logic_blocks().size(), 1.33);
+  // if (moves_per_temperature < 3000) moves_per_temperature = 3000;
+  // if (moves_per_temperature > 400000) moves_per_temperature = 400000;
 
-  std::vector<std::vector<int>> usage(cols, std::vector<int>(rows, 0));
-
-  for (const auto& net : design.nets()) {
-    double min_x = std::numeric_limits<double>::max();
-    double max_x = std::numeric_limits<double>::lowest();
-    double min_y = std::numeric_limits<double>::max();
-    double max_y = std::numeric_limits<double>::lowest();
-
-    bool has_terminals = false;
-    for (auto block : net->blocks()) {
-      has_terminals = true;
-      double bx = static_cast<double>(block->x());
-      double by = static_cast<double>(block->y());
-
-      if (bx < min_x) min_x = bx;
-      if ((bx + 1.0) > max_x) max_x = bx + 1.0;
-      if (by < min_y) min_y = by;
-      if ((by + 1.0) > max_y) max_y = by + 1.0;
+  while (temperature > min_temperature) {
+    auto current_time = std::chrono::steady_clock::now();
+    std::chrono::duration<double> elapsed_seconds = current_time - sa_start_time;
+    if (elapsed_seconds.count() > TIME_LIMIT_SECONDS) {
+      std::cout << "\n[SA] Time Limit Reached. Stopping." << std::endl;
+      break;
     }
 
-    for (auto pin : net->pins()) {
-      has_terminals = true;
-      double px = pin->x();
-      double py = pin->y();
+    int accepted_moves = 0;
 
-      if (px < min_x) min_x = px;
-      if (px > max_x) max_x = px;
-      if (py < min_y) min_y = py;
-      if (py > max_y) max_y = py;
-    }
+    for (int i = 0; i < moves_per_temperature; ++i) {
+      const auto& blocks = design.logic_blocks();
+      LogicBlock* block1 = blocks[std::rand() % blocks.size()];
+      int x1 = block1->x();
+      int y1 = block1->y();
+      int x2, y2;
 
-    if (!has_terminals) continue;
+      double random_val = static_cast<double>(std::rand()) / RAND_MAX;
 
-    int start_x = std::max(0, (int)std::ceil(min_x));
-    int start_y = std::max(0, (int)std::ceil(min_y));
+      if (random_val < 0.5) {
+        OptimalRegion region = block1->GetOptimalRegion(chip_width, chip_height);
+        int width = region.upper_x - region.lower_x + 1;
+        int height = region.upper_y - region.lower_y + 1;
+        x2 = region.lower_x + (std::rand() % width);
+        y2 = region.lower_y + (std::rand() % height);
+      } else {
+        x2 = std::rand() % chip_width;
+        y2 = std::rand() % chip_height;
+      }
 
-    for (int x = start_x; x < max_x && x < cols; ++x) {
-      for (int y = start_y; y < max_y && y < rows; ++y) {
-        usage[x][y]++;
+      if (x1 == x2 && y1 == y2) continue;
+
+      LogicBlock* block2 = grid[x2][y2];
+
+      block1->set_x(x2);
+      block1->set_y(y2);
+      if (block2) {
+        block2->set_x(x1);
+        block2->set_y(y1);
+      }
+      grid[x1][y1] = block2;
+      grid[x2][y2] = block1;
+
+      double new_total_hpwl = design.CalculateTotalHPWL();
+      double new_congestion_coefficient = design.CalculateCongestionCoefficient();
+      double new_cost = new_total_hpwl * new_congestion_coefficient;
+      double cost_delta = new_cost - current_cost;
+
+      bool accept = false;
+      if (cost_delta < 0) {
+        accept = true;
+      } else {
+        double r = static_cast<double>(std::rand()) / RAND_MAX;
+        if (r < std::exp(-cost_delta / temperature)) {
+          accept = true;
+        }
+      }
+
+      if (accept) {
+        current_cost = new_cost;
+        current_total_hpwl = new_total_hpwl;
+        current_congestion_coefficient = new_congestion_coefficient;
+        accepted_moves++;
+      } else {
+        // Reject：Restore Previous State
+        block1->set_x(x1);
+        block1->set_y(y1);
+        if (block2) {
+          block2->set_x(x2);
+          block2->set_y(y2);
+        }
+        grid[x1][y1] = block1;
+        grid[x2][y2] = block2;
       }
     }
+
+    // Update temperature
+    double acceptance_rate = (double)accepted_moves / moves_per_temperature;
+    double alpha = 0.8;
+    if (acceptance_rate > 0.96)
+      alpha = 0.7;
+    else if (acceptance_rate > 0.8)
+      alpha = 0.9;
+    else if (acceptance_rate > 0.15)
+      alpha = 0.95;
+    temperature *= alpha;
+
+    round_count++;
+    std::cout << std::fixed << std::setprecision(4) << "Round " << std::setw(3) << round_count << " | T: " << std::scientific << std::setprecision(2)
+              << temperature << " | Acc: " << std::fixed << std::setw(4) << (int)(acceptance_rate * 100) << "%"
+              << " | Cost: " << std::scientific << std::setprecision(3) << current_cost << " | HPWL: " << std::fixed << std::setprecision(1)
+              << current_total_hpwl << " | CC: " << std::setprecision(4) << current_congestion_coefficient << std::endl;
   }
 
-  double sum_u = 0.0;
-  double sum_sq_u = 0.0;
-
-  for (int x = 0; x < cols; ++x) {
-    for (int y = 0; y < rows; ++y) {
-      double val = (double)usage[x][y];
-      sum_u += val;
-      sum_sq_u += (val * val);
-    }
-  }
-
-  double term1 = sum_sq_u / (double)n_sites;
-  double mean_u = sum_u / (double)n_sites;
-  double term2 = mean_u * mean_u;
-
-  if (term2 == 0.0) return 1.0;
-
-  return term1 / term2;
-}
-
-void Placer::Run(Design& design) {
-  InitPlace(design);
-  double hpwl = CalculateHPWL(design);
-  double cc = CalculateCongestionCoefficient(design);
-  std::cout << "Initial HPWL: " << hpwl << std::endl;
-  std::cout << "Initial Congestion: " << cc << std::endl;
+  std::cout << "[SA] Final Cost: " << current_cost << " (HPWL: " << current_total_hpwl << ", CC: " << current_congestion_coefficient << ")"
+            << std::endl;
 }

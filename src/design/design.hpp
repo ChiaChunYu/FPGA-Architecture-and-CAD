@@ -6,6 +6,21 @@ class LogicBlock;
 class IOPin;
 class Net;
 
+struct OptimalRegion {
+  int lower_x;
+  int lower_y;
+  int upper_x;
+  int upper_y;
+};
+
+struct BoundingBox {
+  double lower_x;
+  double lower_y;
+  double upper_x;
+  double upper_y;
+  bool is_valid;
+};
+
 class LogicBlock {
  public:
   explicit LogicBlock(const std::string& name);
@@ -13,12 +28,13 @@ class LogicBlock {
   const std::string& name() const { return name_; }
   int x() const { return x_; }
   int y() const { return y_; }
+  const std::vector<Net*>& nets() const { return nets_; }
 
   void set_x(int x) { x_ = x; }
   void set_y(int y) { y_ = y; }
-
   void AddNet(Net* net);
-  const std::vector<Net*>& nets() const { return nets_; }
+
+  OptimalRegion GetOptimalRegion(int chip_width, int chip_height) const;
 
  private:
   std::string name_;
@@ -34,8 +50,9 @@ class IOPin {
   const std::string& name() const { return name_; }
   double x() const { return x_; }
   double y() const { return y_; }
-  void AddNet(Net* net);
   const std::vector<Net*>& nets() const { return nets_; }
+
+  void AddNet(Net* net);
 
  private:
   std::string name_;
@@ -54,6 +71,9 @@ class Net {
 
   void AddBlock(LogicBlock* block);
   void AddPin(IOPin* pin);
+
+  BoundingBox ComputeBoundingBox(const LogicBlock* exclude_block = nullptr) const;
+  double CalculateHPWL() const;
 
  private:
   std::string name_;
@@ -80,6 +100,9 @@ class Design {
   const std::vector<LogicBlock*>& logic_blocks() const { return logic_blocks_; }
   const std::vector<IOPin*>& io_pins() const { return io_pins_; }
   const std::vector<Net*>& nets() const { return nets_; }
+
+  double CalculateTotalHPWL() const;
+  double CalculateCongestionCoefficient() const;
 
  private:
   int chip_width_;

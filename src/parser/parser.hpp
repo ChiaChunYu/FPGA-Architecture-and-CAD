@@ -3,8 +3,7 @@
 
 class Design;
 
-class Parser
-{
-public:
-    static void parse(const std::string &filename, Design &design);
+class Parser {
+ public:
+  static void parse(const std::string& filename, Design& design);
 };
