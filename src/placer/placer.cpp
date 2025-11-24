@@ -7,6 +7,7 @@
 #include <ctime>
 #include <iomanip>
 #include <iostream>
+#include <unordered_set>
 #include <vector>
 
 #include "../design/design.hpp"
@@ -63,7 +64,7 @@ void Placer::RunSA(Design& design) {
   std::cout << "[SA] Init Cost: " << current_cost << " | HPWL: " << current_total_hpwl << " | CC: " << current_congestion_coefficient << std::endl;
 
   // SA Parameters
-  double temperature = current_cost / 20.0;
+  double temperature = 100;
   double min_temperature = 1e-5;
   int moves_per_temperature = 10 * design.logic_blocks().size();
   // int moves_per_temperature = 15 * std::pow(design.logic_blocks().size(), 1.33);
@@ -89,7 +90,7 @@ void Placer::RunSA(Design& design) {
 
       double random_val = static_cast<double>(std::rand()) / RAND_MAX;
 
-      if (random_val < 0.5) {
+      if (random_val < 0.7) {
         OptimalRegion region = block1->GetOptimalRegion(chip_width, chip_height);
         int width = region.upper_x - region.lower_x + 1;
         int height = region.upper_y - region.lower_y + 1;
@@ -104,6 +105,22 @@ void Placer::RunSA(Design& design) {
 
       LogicBlock* block2 = grid[x2][y2];
 
+      double orig_hpwl = 0;
+      double new_hpwl = 0;
+      std::unordered_set<Net*> affected_nets;
+      for (auto net : block1->nets()) {
+        affected_nets.insert(net);
+      }
+      if (block2) {
+        for (auto net : block2->nets()) {
+          affected_nets.insert(net);
+        }
+      }
+
+      for (auto net : affected_nets) {
+        orig_hpwl += net->CalculateHPWL();
+      }
+
       block1->set_x(x2);
       block1->set_y(y2);
       if (block2) {
@@ -113,7 +130,12 @@ void Placer::RunSA(Design& design) {
       grid[x1][y1] = block2;
       grid[x2][y2] = block1;
 
-      double new_total_hpwl = design.CalculateTotalHPWL();
+      for (auto net : affected_nets) {
+        new_hpwl += net->CalculateHPWL();
+      }
+
+      double delta_hpwl = new_hpwl - orig_hpwl;
+      double new_total_hpwl = current_total_hpwl + delta_hpwl;
       double new_congestion_coefficient = design.CalculateCongestionCoefficient();
       double new_cost = new_total_hpwl * new_congestion_coefficient;
       double cost_delta = new_cost - current_cost;
@@ -150,9 +172,9 @@ void Placer::RunSA(Design& design) {
     double acceptance_rate = (double)accepted_moves / moves_per_temperature;
     double alpha = 0.8;
     if (acceptance_rate > 0.96)
-      alpha = 0.7;
-    else if (acceptance_rate > 0.8)
       alpha = 0.9;
+    else if (acceptance_rate > 0.8)
+      alpha = 0.92;
     else if (acceptance_rate > 0.15)
       alpha = 0.95;
     temperature *= alpha;
