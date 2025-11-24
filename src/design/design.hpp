@@ -102,6 +102,7 @@ class Design {
   const std::vector<Net*>& nets() const { return nets_; }
 
   double CalculateTotalHPWL() const;
+  std::vector<std::vector<int>> CalculateUsageMap() const;
   double CalculateCongestionCoefficient() const;
 
  private:

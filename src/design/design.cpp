@@ -168,9 +168,9 @@ double Design::CalculateTotalHPWL() const {
   return total_hpwl;
 }
 
-double Design::CalculateCongestionCoefficient() const {
+std::vector<std::vector<int>> Design::CalculateUsageMap() const {
   long long num_sites = (long long)chip_width_ * chip_height_;
-  if (num_sites == 0) return 0.0;
+  if (num_sites == 0) return std::vector<std::vector<int>>();
 
   std::vector<std::vector<int>> usage_map(chip_width_, std::vector<int>(chip_height_, 0));
 
@@ -189,6 +189,12 @@ double Design::CalculateCongestionCoefficient() const {
       }
     }
   }
+  return usage_map;
+}
+
+double Design::CalculateCongestionCoefficient() const {
+  long long num_sites = (long long)chip_width_ * chip_height_;
+  std::vector<std::vector<int>> usage_map = CalculateUsageMap();
 
   double sum_usage = 0.0;
   double sum_squared_usage = 0.0;
