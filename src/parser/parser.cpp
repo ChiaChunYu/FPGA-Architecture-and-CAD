@@ -64,16 +64,20 @@ void Parser::parse(const std::string& filename, Design& design) {
     for (int j = 0; j < degree; ++j) {
       std::string termName;
       infile >> termName;
-      if (auto blockIt = blockMap.find(termName); blockIt != blockMap.end()) {
+      auto blockIt = blockMap.find(termName);
+      if (blockIt != blockMap.end()) {
         LogicBlock* lb = blockIt->second;
         newNet->AddBlock(lb);
         lb->AddNet(newNet);
-      } else if (auto pinIt = pinMap.find(termName); pinIt != pinMap.end()) {
-        IOPin* pin = pinIt->second;
-        newNet->AddPin(pin);
-        pin->AddNet(newNet);
       } else {
-        throw std::runtime_error("Error: Unknown terminal '" + termName + "' in net '" + name + "'");
+        auto pinIt = pinMap.find(termName);
+        if (pinIt != pinMap.end()) {
+          IOPin* pin = pinIt->second;
+          newNet->AddPin(pin);
+          pin->AddNet(newNet);
+        } else {
+          throw std::runtime_error("Error: Unknown terminal '" + termName + "' in net '" + name + "'");
+        }
       }
     }
     design.AddNet(newNet);
