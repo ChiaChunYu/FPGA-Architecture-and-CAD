@@ -101,9 +101,10 @@ class Design {
   const std::vector<IOPin*>& io_pins() const { return io_pins_; }
   const std::vector<Net*>& nets() const { return nets_; }
 
-  double CalculateTotalHPWL() const;
-  std::vector<std::vector<int>> CalculateUsageMap() const;
-  double CalculateCongestionCoefficient() const;
+  double GetTotalHPWL() const;
+  std::vector<std::vector<int>> GetUsageMap() const;
+  std::vector<std::vector<LogicBlock*>> GetGridGraph() const;
+  // double CalculateCongestionCoefficient() const;
 
  private:
   int chip_width_;

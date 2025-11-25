@@ -160,7 +160,7 @@ void Design::AddNet(Net* net) {
   nets_.push_back(net);
 }
 
-double Design::CalculateTotalHPWL() const {
+double Design::GetTotalHPWL() const {
   double total_hpwl = 0.0;
   for (const auto& net : nets_) {
     total_hpwl += net->CalculateHPWL();
@@ -168,7 +168,7 @@ double Design::CalculateTotalHPWL() const {
   return total_hpwl;
 }
 
-std::vector<std::vector<int>> Design::CalculateUsageMap() const {
+std::vector<std::vector<int>> Design::GetUsageMap() const {
   long long num_sites = (long long)chip_width_ * chip_height_;
   if (num_sites == 0) return std::vector<std::vector<int>>();
 
@@ -192,26 +192,40 @@ std::vector<std::vector<int>> Design::CalculateUsageMap() const {
   return usage_map;
 }
 
-double Design::CalculateCongestionCoefficient() const {
-  long long num_sites = (long long)chip_width_ * chip_height_;
-  std::vector<std::vector<int>> usage_map = CalculateUsageMap();
+std::vector<std::vector<LogicBlock*>> Design::GetGridGraph() const {
+  std::vector<std::vector<LogicBlock*>> grid_graph(chip_width_, std::vector<LogicBlock*>(chip_height_, nullptr));
 
-  double sum_usage = 0.0;
-  double sum_squared_usage = 0.0;
-
-  for (int x = 0; x < chip_width_; ++x) {
-    for (int y = 0; y < chip_height_; ++y) {
-      double val = (double)usage_map[x][y];
-      sum_usage += val;
-      sum_squared_usage += (val * val);
+  for (size_t i = 0; i < logic_blocks_.size(); ++i) {
+    const auto& block = logic_blocks_[i];
+    int x = block->x();
+    int y = block->y();
+    if (x >= 0 && x < chip_width_ && y >= 0 && y < chip_height_) {
+      grid_graph[x][y] = block;
     }
   }
-
-  double mean_squared_usage = sum_squared_usage / (double)num_sites;
-  double mean_usage = sum_usage / (double)num_sites;
-  double mean_usage_squared = mean_usage * mean_usage;
-
-  if (mean_usage_squared == 0.0) return 1.0;
-
-  return mean_squared_usage / mean_usage_squared;
+  return grid_graph;
 }
+
+// double Design::CalculateCongestionCoefficient() const {
+//   long long num_sites = (long long)chip_width_ * chip_height_;
+//   std::vector<std::vector<int>> usage_map = CalculateUsageMap();
+
+//   double sum_usage = 0.0;
+//   double sum_squared_usage = 0.0;
+
+//   for (int x = 0; x < chip_width_; ++x) {
+//     for (int y = 0; y < chip_height_; ++y) {
+//       double val = (double)usage_map[x][y];
+//       sum_usage += val;
+//       sum_squared_usage += (val * val);
+//     }
+//   }
+
+//   double mean_squared_usage = sum_squared_usage / (double)num_sites;
+//   double mean_usage = sum_usage / (double)num_sites;
+//   double mean_usage_squared = mean_usage * mean_usage;
+
+//   if (mean_usage_squared == 0.0) return 1.0;
+
+//   return mean_squared_usage / mean_usage_squared;
+// }
