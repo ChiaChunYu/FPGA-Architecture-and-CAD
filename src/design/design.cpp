@@ -169,19 +169,16 @@ double Design::GetTotalHPWL() const {
 }
 
 std::vector<std::vector<int>> Design::GetUsageMap() const {
-  long long num_sites = (long long)chip_width_ * chip_height_;
-  if (num_sites == 0) return std::vector<std::vector<int>>();
-
   std::vector<std::vector<int>> usage_map(chip_width_, std::vector<int>(chip_height_, 0));
 
   for (const auto& net : nets_) {
-    BoundingBox bb = net->ComputeBoundingBox(nullptr);
-    if (!bb.is_valid) continue;
+    BoundingBox boundingbox = net->ComputeBoundingBox(nullptr);
+    if (!boundingbox.is_valid) continue;
 
-    int start_x = std::max(0, static_cast<int>(std::floor(bb.lower_x)));
-    int end_x = std::min(chip_width_, static_cast<int>(std::ceil(bb.upper_x)));
-    int start_y = std::max(0, static_cast<int>(std::floor(bb.lower_y)));
-    int end_y = std::min(chip_height_, static_cast<int>(std::ceil(bb.upper_y)));
+    int start_x = std::max(0, static_cast<int>(std::floor(boundingbox.lower_x)));
+    int end_x = std::min(chip_width_, static_cast<int>(std::ceil(boundingbox.upper_x)));
+    int start_y = std::max(0, static_cast<int>(std::floor(boundingbox.lower_y)));
+    int end_y = std::min(chip_height_, static_cast<int>(std::ceil(boundingbox.upper_y)));
 
     for (int x = start_x; x < end_x; ++x) {
       for (int y = start_y; y < end_y; ++y) {
@@ -189,6 +186,7 @@ std::vector<std::vector<int>> Design::GetUsageMap() const {
       }
     }
   }
+
   return usage_map;
 }
 
@@ -203,6 +201,7 @@ std::vector<std::vector<LogicBlock*>> Design::GetGridGraph() const {
       grid_graph[x][y] = block;
     }
   }
+
   return grid_graph;
 }
 

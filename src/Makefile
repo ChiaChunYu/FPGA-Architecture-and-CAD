@@ -72,4 +72,14 @@ test_pdc: $(TARGET)
 	@$(CHECKER)  ../testcases/pdc.txt $(OUT_DIR)/pdc.txt
 	@echo ""
 
-test : test_alu4 test_apex4 test_clma_2 test_elliptic test_pdc
+test_pdc_20000: $(TARGET)
+	@echo "========================================"
+	@echo "[TEST] Starting test pdc_20000"
+	@echo "========================================"
+	@mkdir -p $(OUT_DIR)
+	$(TARGET)  ../testcases/pdc_20000.txt $(OUT_DIR)/pdc_20000.txt
+	@$(CHECKER)  ../testcases/pdc_20000.txt $(OUT_DIR)/pdc_20000.txt
+	@echo ""
+
+
+test : test_alu4 test_apex4 test_clma_2 test_elliptic test_pdc test_pdc_20000

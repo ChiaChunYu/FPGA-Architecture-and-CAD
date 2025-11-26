@@ -104,7 +104,6 @@ class Design {
   double GetTotalHPWL() const;
   std::vector<std::vector<int>> GetUsageMap() const;
   std::vector<std::vector<LogicBlock*>> GetGridGraph() const;
-  // double CalculateCongestionCoefficient() const;
 
  private:
   int chip_width_;

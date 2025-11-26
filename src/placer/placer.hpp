@@ -1,4 +1,5 @@
 #pragma once
+#include <random>
 #include <vector>
 
 class Design;
@@ -7,21 +8,25 @@ class Net;
 
 struct SAData {
   double total_hpwl;
-  double sum_usage;
-  double sum_squared_usage;
+  long long sum_usage;
+  long long sum_squared_usage;
 };
 
 class Placer {
  public:
-  // static double CalculateHPWL(const Design& design);
-  // static double CalculateCongestionCoefficient(const Design& design, std::vector<std::vector<int>>& usage_map);
-  // static double UpdateMapAndCalcHPWL(std::vector<std::vector<int>>& usage_map, const std::vector<Net*>& nets, const Design& design, int val);
-  // static SwapResult CalculateSwapDelta(LogicBlock* block1, LogicBlock* block2, int target_x, int target_y, Design& design,
-  //                                      std::vector<std::vector<int>>& usage_map, double current_total_hpwl, double current_cost);
-
-  // static double CalculateHPWL(const Design& design);
-  // static double CalculateCongestionCoefficient(const Design& design, std::vector<std::vector<int>>& usage_map);
-  static void InitPlace(Design& design);
   static void RunSA(Design& design);
-};
 
+ private:
+  static void InitPlace(Design& design);
+
+  static double CalculateCongestionCoefficient(const Design& design, const SAData& sa_data);
+  static double ComputeCost(const Design& design, const SAData& sa_data);
+
+  static void InitializeData(const Design& design, const std::vector<std::vector<int>>& usage_map, SAData& sa_data);
+  static void UpdateData(const Design& design, std::vector<std::vector<int>>& usage_map, SAData& sa_data, const std::vector<Net*>& nets, int val);
+  static void SwapPosition(LogicBlock* block1, LogicBlock* block2, int target_x, int target_y, Design& design,
+                           std::vector<std::vector<int>>& usage_map, SAData& sa_data, std::vector<std::vector<LogicBlock*>>& grid_graph);
+
+  static double EstimateInitialTemperature(Design& design, std::vector<std::vector<int>>& usage_map, SAData& sa_data,
+                                           std::vector<std::vector<LogicBlock*>>& grid_graph, std::mt19937& rng);
+};
