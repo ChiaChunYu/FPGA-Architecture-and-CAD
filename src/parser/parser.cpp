@@ -74,7 +74,6 @@ void Parser::parse(const std::string& filename, Design& design) {
         if (pinIt != pinMap.end()) {
           IOPin* pin = pinIt->second;
           newNet->AddPin(pin);
-          pin->AddNet(newNet);
         } else {
           throw std::runtime_error("Error: Unknown terminal '" + termName + "' in net '" + name + "'");
         }

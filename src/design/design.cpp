@@ -69,10 +69,6 @@ OptimalRegion LogicBlock::GetOptimalRegion(int chip_width, int chip_height) cons
 
 IOPin::IOPin(const std::string& name, double x, double y) : name_(name), x_(x), y_(y) {}
 
-void IOPin::AddNet(Net* net) {
-  nets_.push_back(net);
-}
-
 // ------------------------------ Net Implementation------------------------------- //
 
 Net::Net(const std::string& name, int degree) : name_(name), degree_(degree) {
@@ -140,14 +136,6 @@ void Design::set_chip_dimensions(int width, int height) {
   chip_height_ = height;
 }
 
-void Design::set_chip_height(int height) {
-  chip_height_ = height;
-}
-
-void Design::set_chip_width(int width) {
-  chip_width_ = width;
-}
-
 void Design::AddLogicBlock(LogicBlock* block) {
   logic_blocks_.push_back(block);
 }
@@ -204,27 +192,3 @@ std::vector<std::vector<LogicBlock*>> Design::GetGridGraph() const {
 
   return grid_graph;
 }
-
-// double Design::CalculateCongestionCoefficient() const {
-//   long long num_sites = (long long)chip_width_ * chip_height_;
-//   std::vector<std::vector<int>> usage_map = CalculateUsageMap();
-
-//   double sum_usage = 0.0;
-//   double sum_squared_usage = 0.0;
-
-//   for (int x = 0; x < chip_width_; ++x) {
-//     for (int y = 0; y < chip_height_; ++y) {
-//       double val = (double)usage_map[x][y];
-//       sum_usage += val;
-//       sum_squared_usage += (val * val);
-//     }
-//   }
-
-//   double mean_squared_usage = sum_squared_usage / (double)num_sites;
-//   double mean_usage = sum_usage / (double)num_sites;
-//   double mean_usage_squared = mean_usage * mean_usage;
-
-//   if (mean_usage_squared == 0.0) return 1.0;
-
-//   return mean_squared_usage / mean_usage_squared;
-// }

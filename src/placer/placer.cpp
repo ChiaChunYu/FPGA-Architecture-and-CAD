@@ -27,7 +27,6 @@ void Placer::InitPlace(Design& design) {
       current_y++;
     }
   }
-  std::cout << "Initial placement completed." << std::endl;
 }
 
 double Placer::CalculateCongestionCoefficient(const Design& design, const SAData& sa_data) {
@@ -71,14 +70,14 @@ void Placer::UpdateData(const Design& design, std::vector<std::vector<int>>& usa
   int chip_height = design.chip_height();
 
   for (auto net : nets) {
-    BoundingBox bb = net->ComputeBoundingBox(nullptr);
-    if (!bb.is_valid) continue;
-    double hpwl = (bb.upper_x - bb.lower_x) + (bb.upper_y - bb.lower_y);
+    BoundingBox boundingbox = net->ComputeBoundingBox();
+    if (!boundingbox.is_valid) continue;
+    double hpwl = (boundingbox.upper_x - boundingbox.lower_x) + (boundingbox.upper_y - boundingbox.lower_y);
     sa_data.total_hpwl += val * hpwl;
-    int start_x = std::max(0, static_cast<int>(std::floor(bb.lower_x)));
-    int end_x = std::min(chip_width, static_cast<int>(std::ceil(bb.upper_x)));
-    int start_y = std::max(0, static_cast<int>(std::floor(bb.lower_y)));
-    int end_y = std::min(chip_height, static_cast<int>(std::ceil(bb.upper_y)));
+    int start_x = std::max(0, static_cast<int>(std::floor(boundingbox.lower_x)));
+    int end_x = std::min(chip_width, static_cast<int>(std::ceil(boundingbox.upper_x)));
+    int start_y = std::max(0, static_cast<int>(std::floor(boundingbox.lower_y)));
+    int end_y = std::min(chip_height, static_cast<int>(std::ceil(boundingbox.upper_y)));
 
     for (int x = start_x; x < end_x; ++x) {
       for (int y = start_y; y < end_y; ++y) {
@@ -140,7 +139,7 @@ double Placer::EstimateInitialTemperature(Design& design, std::vector<std::vecto
   std::uniform_int_distribution<int> dist_w(0, chip_w - 1);
   std::uniform_int_distribution<int> dist_h(0, chip_h - 1);
 
-  for (int k = 0; k < sample_moves; ++k) {
+  for (int i = 0; i < sample_moves; ++i) {
     LogicBlock* block1 = blocks[dist_block(rng)];
     int x1 = block1->x();
     int y1 = block1->y();
@@ -159,6 +158,7 @@ double Placer::EstimateInitialTemperature(Design& design, std::vector<std::vecto
       sum_pos_delta += delta;
       count_pos++;
     }
+
     SwapPosition(block1, block2, old_x1, old_y1, design, usage_map, sa_data, grid_graph);
   }
 
@@ -187,27 +187,25 @@ void Placer::RunSA(Design& design) {
   std::uniform_real_distribution<double> dist_prob(0.0, 1.0);
   std::uniform_int_distribution<int> dist_block_idx(0, design.logic_blocks().size() - 1);
 
+  // SA data
   std::vector<std::vector<int>> usage_map = design.GetUsageMap();
   std::vector<std::vector<LogicBlock*>> grid_graph = design.GetGridGraph();
-
-  // SA data
   SAData sa_data;
   InitializeData(design, usage_map, sa_data);
-  double current_total_hpwl = sa_data.total_hpwl;
-  double current_congestion_coefficient = CalculateCongestionCoefficient(design, sa_data);
   double current_cost = ComputeCost(design, sa_data);
 
   int round_count = 0;
-  std::cout << "[SA] Init Cost: " << current_cost << " | HPWL: " << current_total_hpwl << " | CC: " << current_congestion_coefficient << std::endl;
+  std::cout << "[SA] Init Cost: " << current_cost << " | HPWL: " << sa_data.total_hpwl << " | CC: " << CalculateCongestionCoefficient(design, sa_data)
+            << std::endl;
 
   // SA Parameters
   double temperature = EstimateInitialTemperature(design, usage_map, sa_data, grid_graph, rng);
-  std::cout << "[SA] Estimated Initial Temperature: " << temperature << std::endl;
   const double min_temperature = 1e-5;
   const double max_region_prob = 0.9;
   const double prob_step = 0.02;
   double current_region_prob = 0.3;
   int moves_per_temperature = 40000;
+  std::cout << "[SA] Estimated Initial Temperature: " << temperature << std::endl;
 
   while (temperature > min_temperature) {
     auto current_time = std::chrono::steady_clock::now();
@@ -226,8 +224,8 @@ void Placer::RunSA(Design& design) {
       LogicBlock* block1 = blocks[dist_block_idx(rng)];
       int x1 = block1->x();
       int y1 = block1->y();
-
-      int x2, y2;
+      int x2;
+      int y2;
       bool use_region = (dist_prob(rng) < current_region_prob);
 
       OptimalRegion region;
@@ -259,8 +257,6 @@ void Placer::RunSA(Design& design) {
 
       SwapPosition(block1, block2, x2, y2, design, usage_map, sa_data, grid_graph);
 
-      double new_total_hpwl = sa_data.total_hpwl;
-      double new_congestion_coefficient = CalculateCongestionCoefficient(design, sa_data);
       double new_cost = ComputeCost(design, sa_data);
       double delta_cost = new_cost - current_cost;
 
@@ -276,8 +272,6 @@ void Placer::RunSA(Design& design) {
 
       if (accept) {
         current_cost = new_cost;
-        current_total_hpwl = new_total_hpwl;
-        current_congestion_coefficient = new_congestion_coefficient;
         accepted_moves++;
       } else {
         SwapPosition(block1, block2, old_x1, old_y1, design, usage_map, sa_data, grid_graph);
@@ -293,9 +287,9 @@ void Placer::RunSA(Design& design) {
 
     double acceptance_rate = static_cast<double>(accepted_moves) / moves_per_temperature;
     double alpha = 0.8;
-    if (acceptance_rate > 0.96)
+    if (acceptance_rate > 0.85)
       alpha = 0.5;
-    else if (acceptance_rate > 0.8)
+    else if (acceptance_rate > 0.75)
       alpha = 0.92;
     else if (acceptance_rate > 0.15)
       alpha = 0.95;
@@ -305,9 +299,8 @@ void Placer::RunSA(Design& design) {
     std::cout << std::fixed << std::setprecision(4) << "Round " << std::setw(3) << round_count << " | T: " << std::scientific << std::setprecision(2)
               << temperature << " | Acc: " << std::fixed << std::setw(4) << static_cast<int>(acceptance_rate * 100) << "%"
               << " | Cost: " << std::scientific << std::setprecision(3) << current_cost << " | HPWL: " << std::fixed << std::setprecision(1)
-              << current_total_hpwl << " | CC: " << std::setprecision(4) << current_congestion_coefficient << std::endl;
+              << sa_data.total_hpwl << " | CC: " << std::setprecision(4) << CalculateCongestionCoefficient(design, sa_data) << std::endl;
   }
-
-  std::cout << "[SA] Final Cost: " << current_cost << " (HPWL: " << current_total_hpwl << ", CC: " << current_congestion_coefficient << ")"
-            << std::endl;
+  std::cout << "[SA] Final Cost: " << current_cost << " (HPWL: " << sa_data.total_hpwl << ", CC: " << CalculateCongestionCoefficient(design, sa_data)
+            << ")" << std::endl;
 }

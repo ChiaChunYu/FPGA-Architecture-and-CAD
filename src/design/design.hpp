@@ -50,15 +50,11 @@ class IOPin {
   const std::string& name() const { return name_; }
   double x() const { return x_; }
   double y() const { return y_; }
-  const std::vector<Net*>& nets() const { return nets_; }
-
-  void AddNet(Net* net);
 
  private:
   std::string name_;
   double x_;
   double y_;
-  std::vector<Net*> nets_;
 };
 
 class Net {
@@ -90,8 +86,6 @@ class Design {
   int chip_height() const { return chip_height_; }
 
   void set_chip_dimensions(int width, int height);
-  void set_chip_height(int height);
-  void set_chip_width(int width);
 
   void AddLogicBlock(LogicBlock* block);
   void AddIOPin(IOPin* pin);
