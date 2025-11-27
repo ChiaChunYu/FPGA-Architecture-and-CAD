@@ -8,7 +8,7 @@
 
 #include "../design/design.hpp"
 
-void Parser::parse(const std::string& filename, Design& design) {
+void Parser::Parse(const std::string& filename, Design& design) {
   std::ifstream infile(filename);
   if (!infile.is_open()) {
     throw std::runtime_error("Error: Could not open file " + filename);

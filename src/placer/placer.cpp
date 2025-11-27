@@ -16,7 +16,6 @@ void Placer::InitPlace(Design& design) {
   int current_x = 0;
   int current_y = 0;
   int chip_width = design.chip_width();
-  int chip_height = design.chip_height();
 
   for (auto block : design.logic_blocks()) {
     block->set_x(current_x);
@@ -47,13 +46,13 @@ double Placer::ComputeCost(const Design& design, const SAData& sa_data) {
 }
 
 void Placer::InitializeData(const Design& design, const std::vector<std::vector<int>>& usage_map, SAData& sa_data) {
-  int chip_w = design.chip_width();
-  int chip_h = design.chip_height();
+  int chip_width = design.chip_width();
+  int chip_height = design.chip_height();
   long long sum_usage = 0;
   long long sum_squared_usage = 0;
 
-  for (int x = 0; x < chip_w; ++x) {
-    for (int y = 0; y < chip_h; ++y) {
+  for (int x = 0; x < chip_width; ++x) {
+    for (int y = 0; y < chip_height; ++y) {
       long long val = usage_map[x][y];
       sum_usage += val;
       sum_squared_usage += val * val;
@@ -127,8 +126,8 @@ void Placer::SwapPosition(LogicBlock* block1, LogicBlock* block2, int target_x, 
 
 double Placer::EstimateInitialTemperature(Design& design, std::vector<std::vector<int>>& usage_map, SAData& sa_data,
                                           std::vector<std::vector<LogicBlock*>>& grid_graph, std::mt19937& rng) {
-  int chip_w = design.chip_width();
-  int chip_h = design.chip_height();
+  int chip_width = design.chip_width();
+  int chip_height = design.chip_height();
   const auto& blocks = design.logic_blocks();
   double base_cost = ComputeCost(design, sa_data);
   double sum_pos_delta = 0.0;
@@ -136,19 +135,21 @@ double Placer::EstimateInitialTemperature(Design& design, std::vector<std::vecto
   int count_pos = 0;
 
   std::uniform_int_distribution<int> dist_block(0, blocks.size() - 1);
-  std::uniform_int_distribution<int> dist_w(0, chip_w - 1);
-  std::uniform_int_distribution<int> dist_h(0, chip_h - 1);
+  std::uniform_int_distribution<int> dist_w(0, chip_width - 1);
+  std::uniform_int_distribution<int> dist_h(0, chip_height - 1);
 
   for (int i = 0; i < sample_moves; ++i) {
     LogicBlock* block1 = blocks[dist_block(rng)];
     int x1 = block1->x();
     int y1 = block1->y();
-    int x2 = dist_w(rng);
-    int y2 = dist_h(rng);
-    if (x1 == x2 && y1 == y2) continue;
+    int x2;
+    int y2;
+    do {
+      x2 = dist_w(rng);
+      y2 = dist_h(rng);
+    } while (x1 == x2 && y1 == y2);
 
     LogicBlock* block2 = grid_graph[x2][y2];
-    int old_x1 = x1, old_y1 = y1;
 
     SwapPosition(block1, block2, x2, y2, design, usage_map, sa_data, grid_graph);
     double new_cost = ComputeCost(design, sa_data);
@@ -159,7 +160,7 @@ double Placer::EstimateInitialTemperature(Design& design, std::vector<std::vecto
       count_pos++;
     }
 
-    SwapPosition(block1, block2, old_x1, old_y1, design, usage_map, sa_data, grid_graph);
+    SwapPosition(block1, block2, x1, y1, design, usage_map, sa_data, grid_graph);
   }
 
   if (count_pos == 0) return 1.0;
@@ -175,28 +176,20 @@ double Placer::EstimateInitialTemperature(Design& design, std::vector<std::vecto
 void Placer::RunSA(Design& design) {
   auto sa_start_time = std::chrono::steady_clock::now();
   std::cout << "[SA] Starting SA" << std::endl;
+  Placer::InitPlace(design);
   std::random_device rd;
   std::mt19937 rng(rd());
 
-  Placer::InitPlace(design);
+  // SA data
+  int round_count = 0;
   int chip_width = design.chip_width();
   int chip_height = design.chip_height();
-
-  std::uniform_int_distribution<int> dist_w(0, chip_width - 1);
-  std::uniform_int_distribution<int> dist_h(0, chip_height - 1);
-  std::uniform_real_distribution<double> dist_prob(0.0, 1.0);
-  std::uniform_int_distribution<int> dist_block_idx(0, design.logic_blocks().size() - 1);
-
-  // SA data
   std::vector<std::vector<int>> usage_map = design.GetUsageMap();
   std::vector<std::vector<LogicBlock*>> grid_graph = design.GetGridGraph();
+  const auto& blocks = design.logic_blocks();
   SAData sa_data;
   InitializeData(design, usage_map, sa_data);
   double current_cost = ComputeCost(design, sa_data);
-
-  int round_count = 0;
-  std::cout << "[SA] Init Cost: " << current_cost << " | HPWL: " << sa_data.total_hpwl << " | CC: " << CalculateCongestionCoefficient(design, sa_data)
-            << std::endl;
 
   // SA Parameters
   double temperature = EstimateInitialTemperature(design, usage_map, sa_data, grid_graph, rng);
@@ -204,8 +197,16 @@ void Placer::RunSA(Design& design) {
   const double max_region_prob = 0.9;
   const double prob_step = 0.02;
   double current_region_prob = 0.3;
-  int moves_per_temperature = 40000;
+  double alpha = 0.8;
+  int moves_per_temperature = 50000;
   std::cout << "[SA] Estimated Initial Temperature: " << temperature << std::endl;
+  std::cout << "[SA] Init Cost: " << current_cost << " | HPWL: " << sa_data.total_hpwl << " | CC: " << CalculateCongestionCoefficient(design, sa_data)
+            << std::endl;
+
+  std::uniform_int_distribution<int> dist_w(0, chip_width - 1);
+  std::uniform_int_distribution<int> dist_h(0, chip_height - 1);
+  std::uniform_real_distribution<double> dist_prob(0.0, 1.0);
+  std::uniform_int_distribution<int> dist_block_idx(0, blocks.size() - 1);
 
   while (temperature > min_temperature) {
     auto current_time = std::chrono::steady_clock::now();
@@ -218,9 +219,6 @@ void Placer::RunSA(Design& design) {
     int accepted_moves = 0;
 
     for (int i = 0; i < moves_per_temperature; ++i) {
-      const auto& blocks = design.logic_blocks();
-      if (blocks.empty()) break;
-
       LogicBlock* block1 = blocks[dist_block_idx(rng)];
       int x1 = block1->x();
       int y1 = block1->y();
@@ -252,9 +250,6 @@ void Placer::RunSA(Design& design) {
 
       LogicBlock* block2 = grid_graph[x2][y2];
 
-      int old_x1 = x1;
-      int old_y1 = y1;
-
       SwapPosition(block1, block2, x2, y2, design, usage_map, sa_data, grid_graph);
 
       double new_cost = ComputeCost(design, sa_data);
@@ -274,32 +269,30 @@ void Placer::RunSA(Design& design) {
         current_cost = new_cost;
         accepted_moves++;
       } else {
-        SwapPosition(block1, block2, old_x1, old_y1, design, usage_map, sa_data, grid_graph);
+        SwapPosition(block1, block2, x1, y1, design, usage_map, sa_data, grid_graph);
       }
     }
 
     if (current_region_prob < max_region_prob) {
       current_region_prob += prob_step;
-      if (current_region_prob > max_region_prob) {
-        current_region_prob = max_region_prob;
-      }
     }
 
     double acceptance_rate = static_cast<double>(accepted_moves) / moves_per_temperature;
-    double alpha = 0.8;
     if (acceptance_rate > 0.85)
       alpha = 0.5;
     else if (acceptance_rate > 0.75)
       alpha = 0.92;
     else if (acceptance_rate > 0.15)
       alpha = 0.95;
+    else 
+      alpha = 0.8;
     temperature *= alpha;
 
     round_count++;
-    std::cout << std::fixed << std::setprecision(4) << "Round " << std::setw(3) << round_count << " | T: " << std::scientific << std::setprecision(2)
-              << temperature << " | Acc: " << std::fixed << std::setw(4) << static_cast<int>(acceptance_rate * 100) << "%"
-              << " | Cost: " << std::scientific << std::setprecision(3) << current_cost << " | HPWL: " << std::fixed << std::setprecision(1)
-              << sa_data.total_hpwl << " | CC: " << std::setprecision(4) << CalculateCongestionCoefficient(design, sa_data) << std::endl;
+    std::cout << std::fixed << std::setprecision(4) << "Round " << std::setw(3) << round_count << " | T: " << std::fixed << std::setprecision(5)
+              << temperature << " | Acc: " << std::fixed << std::setw(1) << static_cast<int>(acceptance_rate * 100) << "%"
+              << " | Cost: " << std::fixed << std::setprecision(7) << current_cost << " | HPWL: " << std::fixed << std::setprecision(6)
+              << sa_data.total_hpwl << " | CC: " << std::setprecision(7) << CalculateCongestionCoefficient(design, sa_data) << std::endl;
   }
   std::cout << "[SA] Final Cost: " << current_cost << " (HPWL: " << sa_data.total_hpwl << ", CC: " << CalculateCongestionCoefficient(design, sa_data)
             << ")" << std::endl;

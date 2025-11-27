@@ -6,7 +6,7 @@ class Design;
 class LogicBlock;
 class Net;
 
-struct SAData {
+struct SAData  {
   double total_hpwl;
   long long sum_usage;
   long long sum_squared_usage;

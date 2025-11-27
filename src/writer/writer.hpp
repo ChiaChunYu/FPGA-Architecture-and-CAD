@@ -5,5 +5,5 @@ class Design;
 
 class Writer {
  public:
-  static void write(const std::string& filename, const Design& design);
+  static void Write(const std::string& filename, const Design& design);
 };
