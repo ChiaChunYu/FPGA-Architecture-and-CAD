@@ -34,16 +34,16 @@ void ExportToSVG(const Design& design, const std::string& filename) {
         << "r=\"0.5\" fill=\"red\" />\n";
   }
 
-  for (auto net : design.nets()) {
-    bool has_pin = false;
-    if (net->pins().empty()) continue;  // Only draw Nets connected to IO
-    auto pin = net->pins()[0];
-    for (auto block : net->blocks()) {
-      out << "<line x1=\"" << pin->x() << "\" y1=\"" << pin->y() << "\" "
-          << "x2=\"" << block->x() << "\" y2=\"" << block->y() << "\" "
-          << "stroke=\"green\" stroke-width=\"0.1\" opacity=\"0.5\" />\n";
-    }
-  }
+  // for (auto net : design.nets()) {
+  //   bool has_pin = false;
+  //   if (net->pins().empty()) continue;  // Only draw Nets connected to IO
+  //   auto pin = net->pins()[0];
+  //   for (auto block : net->blocks()) {
+  //     out << "<line x1=\"" << pin->x() << "\" y1=\"" << pin->y() << "\" "
+  //         << "x2=\"" << block->x() << "\" y2=\"" << block->y() << "\" "
+  //         << "stroke=\"green\" stroke-width=\"0.1\" opacity=\"0.5\" />\n";
+  //   }
+  // }
 
   out << "</svg>";
   out.close();

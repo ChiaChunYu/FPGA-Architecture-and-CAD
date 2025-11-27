@@ -51,9 +51,6 @@ OptimalRegion LogicBlock::GetOptimalRegion(int chip_width, int chip_height) cons
   std::nth_element(buf_y.begin(), buf_y.begin() + mid_lower, buf_y.begin() + mid_upper);
   double raw_ly = buf_y[mid_lower];
 
-  if (raw_lx > raw_ux) std::swap(raw_lx, raw_ux);
-  if (raw_ly > raw_uy) std::swap(raw_ly, raw_uy);
-
   int lower_x = std::max(0, std::min(chip_width - 1, static_cast<int>(std::floor(raw_lx))));
   int upper_x = std::max(0, std::min(chip_width - 1, static_cast<int>(std::ceil(raw_ux))));
   int lower_y = std::max(0, std::min(chip_height - 1, static_cast<int>(std::floor(raw_ly))));

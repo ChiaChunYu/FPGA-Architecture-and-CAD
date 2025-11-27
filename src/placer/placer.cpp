@@ -12,20 +12,139 @@
 
 const double TIME_LIMIT_SECONDS = 220.0;
 
-void Placer::InitPlace(Design& design) {
-  int current_x = 0;
-  int current_y = 0;
-  int chip_width = design.chip_width();
+// void Placer::InitPlace(Design& design) {
+//   int current_x = 0;
+//   int current_y = 0;
+//   int chip_width = design.chip_width();
 
-  for (auto block : design.logic_blocks()) {
-    block->set_x(current_x);
-    block->set_y(current_y);
-    current_x++;
-    if (current_x >= chip_width) {
-      current_x = 0;
-      current_y++;
+//   for (auto block : design.logic_blocks()) {
+//     block->set_x(current_x);
+//     block->set_y(current_y);
+//     current_x++;
+//     if (current_x >= chip_width) {
+//       current_x = 0;
+//       current_y++;
+//     }
+//   }
+// }
+
+// void Placer::InitPlace(Design& design) {
+//   int chip_width = design.chip_width();
+//   int chip_height = design.chip_height();
+
+//   int bl_x = 0;
+//   int bl_y = 0;
+
+//   int tr_x = chip_width - 1;
+//   int tr_y = chip_height - 1;
+
+//   bool place_at_bottom_left = true;
+
+//   for (auto block : design.logic_blocks()) {
+//     if (place_at_bottom_left) {
+//       block->set_x(bl_x);
+//       block->set_y(bl_y);
+
+//       bl_x++;
+//       if (bl_x >= chip_width) {
+//         bl_x = 0;
+//         bl_y++;
+//       }
+//     } else {
+//       block->set_x(tr_x);
+//       block->set_y(tr_y);
+
+//       tr_x--;
+//       if (tr_x < 0) {
+//         tr_x = chip_width - 1;
+//         tr_y--;
+//       }
+//     }
+
+//     place_at_bottom_left = !place_at_bottom_left;
+//   }
+// }
+
+void Placer::InitPlace(Design& design) {
+  auto& blocks = design.logic_blocks();
+  auto& nets = design.nets();
+
+  int B = blocks.size();
+  int E = nets.size();
+  int W = design.chip_width();
+  int H = design.chip_height();
+
+  if (B == 0) return;
+
+  for (auto* b : blocks) {
+    b->set_x(rand() % W);
+    b->set_y(rand() % H);
+  }
+
+  std::vector<double> cx(E, 0.0);
+  std::vector<double> cy(E, 0.0);
+
+  const int ITER = 5;
+
+  for (int it = 0; it < ITER; it++) {
+    for (int e = 0; e < E; e++) {
+      Net* net = nets[e];
+
+      double sx = 0, sy = 0;
+      int count = 0;
+
+      for (LogicBlock* blk : net->blocks()) {
+        sx += blk->x();
+        sy += blk->y();
+        count++;
+      }
+
+      for (IOPin* pin : net->pins()) {
+        sx += pin->x();
+        sy += pin->y();
+        count++;
+      }
+
+      if (count == 0) count = 1;
+      cx[e] = sx / count;
+      cy[e] = sy / count;
+    }
+
+    for (LogicBlock* blk : blocks) {
+      double sx = 0, sy = 0;
+      int deg = blk->nets().size();
+
+      if (deg == 0) continue;
+
+      for (Net* net : blk->nets()) {
+        int idx = 0;
+        for (; idx < E; idx++)
+          if (nets[idx] == net) break;
+
+        sx += cx[idx];
+        sy += cy[idx];
+      }
+
+      blk->set_x(sx / deg);
+      blk->set_y(sy / deg);
     }
   }
+
+  std::vector<LogicBlock*> sorted = blocks;
+
+  std::sort(sorted.begin(), sorted.end(), [](LogicBlock* a, LogicBlock* b) { return (a->x() + a->y()) < (b->x() + b->y()); });
+
+  int idx = 0;
+  for (int y = 0; y < H; y++) {
+    for (int x = 0; x < W; x++) {
+      if (idx >= B) break;
+      sorted[idx]->set_x(x);
+      sorted[idx]->set_y(y);
+      idx++;
+    }
+  }
+
+  std::cout << "[InitPlace] Analytical placement finished\n";
 }
 
 double Placer::CalculateCongestionCoefficient(const Design& design, const SAData& sa_data) {
@@ -121,6 +240,7 @@ void Placer::SwapPosition(LogicBlock* block1, LogicBlock* block2, int target_x, 
   }
   grid_graph[x1][y1] = block2;
   grid_graph[x2][y2] = block1;
+
   UpdateData(design, usage_map, sa_data, affected_nets, +1);
 }
 
@@ -131,7 +251,7 @@ double Placer::EstimateInitialTemperature(Design& design, std::vector<std::vecto
   const auto& blocks = design.logic_blocks();
   double base_cost = ComputeCost(design, sa_data);
   double sum_pos_delta = 0.0;
-  int sample_moves = std::min(200, (int)blocks.size() * 2);
+  int sample_moves = 100;
   int count_pos = 0;
 
   std::uniform_int_distribution<int> dist_block(0, blocks.size() - 1);
@@ -199,14 +319,15 @@ void Placer::RunSA(Design& design) {
   double current_region_prob = 0.3;
   double alpha = 0.8;
   int moves_per_temperature = 50000;
-  std::cout << "[SA] Estimated Initial Temperature: " << temperature << std::endl;
-  std::cout << "[SA] Init Cost: " << current_cost << " | HPWL: " << sa_data.total_hpwl << " | CC: " << CalculateCongestionCoefficient(design, sa_data)
-            << std::endl;
 
   std::uniform_int_distribution<int> dist_w(0, chip_width - 1);
   std::uniform_int_distribution<int> dist_h(0, chip_height - 1);
   std::uniform_real_distribution<double> dist_prob(0.0, 1.0);
   std::uniform_int_distribution<int> dist_block_idx(0, blocks.size() - 1);
+
+  std::cout << "[SA] Estimated Initial Temperature: " << temperature << std::endl;
+  std::cout << "[SA] Init Cost: " << current_cost << " | HPWL: " << sa_data.total_hpwl << " | CC: " << CalculateCongestionCoefficient(design, sa_data)
+            << std::endl;
 
   while (temperature > min_temperature) {
     auto current_time = std::chrono::steady_clock::now();
@@ -256,7 +377,7 @@ void Placer::RunSA(Design& design) {
       double delta_cost = new_cost - current_cost;
 
       bool accept = false;
-      if (delta_cost < 0.0) {
+      if (delta_cost <= 0.0) {
         accept = true;
       } else {
         double r = dist_prob(rng);
@@ -284,7 +405,7 @@ void Placer::RunSA(Design& design) {
       alpha = 0.92;
     else if (acceptance_rate > 0.15)
       alpha = 0.95;
-    else 
+    else
       alpha = 0.8;
     temperature *= alpha;
 
