@@ -12,7 +12,7 @@ void LogicBlock::AddNet(Net* net) {
   nets_.push_back(net);
 }
 
-OptimalRegion LogicBlock::GetOptimalRegion(int chip_width, int chip_height) const {
+OptimalRegion LogicBlock::CalcOptimalRegion(int chip_width, int chip_height) const {
   if (nets_.empty()) {
     return {0, 0, chip_width - 1, chip_height - 1};
   }
@@ -23,7 +23,7 @@ OptimalRegion LogicBlock::GetOptimalRegion(int chip_width, int chip_height) cons
   buf_y.reserve(nets_.size() * 2);
 
   for (auto net : nets_) {
-    BoundingBox bounding_box = net->ComputeBoundingBox(this);
+    BoundingBox bounding_box = net->CalcBoundingBox(this);
 
     if (bounding_box.is_valid) {
       buf_x.push_back(bounding_box.lower_x);
@@ -81,7 +81,7 @@ void Net::AddPin(IOPin* pin) {
   pins_.push_back(pin);
 }
 
-BoundingBox Net::ComputeBoundingBox(const LogicBlock* exclude_block) const {
+BoundingBox Net::CalcBoundingBox(const LogicBlock* exclude_block) const {
   double min_x = std::numeric_limits<double>::max();
   double max_x = std::numeric_limits<double>::lowest();
   double min_y = std::numeric_limits<double>::max();
@@ -116,8 +116,8 @@ BoundingBox Net::ComputeBoundingBox(const LogicBlock* exclude_block) const {
   return {min_x, min_y, max_x, max_y, true};
 }
 
-double Net::CalculateHPWL() const {
-  BoundingBox bounding_box = ComputeBoundingBox(nullptr);
+double Net::CalcHPWL() const {
+  BoundingBox bounding_box = CalcBoundingBox(nullptr);
 
   if (!bounding_box.is_valid) return 0.0;
 
@@ -145,10 +145,10 @@ void Design::AddNet(Net* net) {
   nets_.push_back(net);
 }
 
-double Design::GetTotalHPWL() const {
+double Design::CalcTotalHPWL() const {
   double total_hpwl = 0.0;
   for (const auto& net : nets_) {
-    total_hpwl += net->CalculateHPWL();
+    total_hpwl += net->CalcHPWL();
   }
   return total_hpwl;
 }
@@ -157,7 +157,7 @@ std::vector<std::vector<int>> Design::GetUsageMap() const {
   std::vector<std::vector<int>> usage_map(chip_width_, std::vector<int>(chip_height_, 0));
 
   for (const auto& net : nets_) {
-    BoundingBox boundingbox = net->ComputeBoundingBox(nullptr);
+    BoundingBox boundingbox = net->CalcBoundingBox(nullptr);
     if (!boundingbox.is_valid) continue;
 
     int start_x = std::max(0, static_cast<int>(std::floor(boundingbox.lower_x)));

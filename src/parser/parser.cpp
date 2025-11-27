@@ -14,16 +14,17 @@ void Parser::Parse(const std::string& filename, Design& design) {
     throw std::runtime_error("Error: Could not open file " + filename);
   }
 
-  int rows = 0, cols = 0;
+  int width = 0;
+  int height = 0;
   int num_logic_blocks = 0;
   int num_io_pins = 0;
   int num_nets = 0;
 
-  if (!(infile >> rows >> cols >> num_logic_blocks >> num_io_pins >> num_nets)) {
+  if (!(infile >> height >> width >> num_logic_blocks >> num_io_pins >> num_nets)) {
     throw std::runtime_error("Error: Invalid header format in " + filename);
   }
 
-  design.set_chip_dimensions(cols, rows);
+  design.set_chip_dimensions(width, height);
 
   std::unordered_map<std::string, LogicBlock*> blockMap;
   blockMap.reserve(num_logic_blocks);

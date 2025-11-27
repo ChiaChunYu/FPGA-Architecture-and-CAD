@@ -7,18 +7,18 @@ class IOPin;
 class Net;
 
 struct OptimalRegion {
-  int lower_x;
-  int lower_y;
-  int upper_x;
-  int upper_y;
+  int lower_x = 0;
+  int lower_y = 0;
+  int upper_x = 0;
+  int upper_y = 0;
 };
 
 struct BoundingBox {
-  double lower_x;
-  double lower_y;
-  double upper_x;
-  double upper_y;
-  bool is_valid;
+  double lower_x = 0.0;
+  double lower_y = 0.0;
+  double upper_x = 0.0;
+  double upper_y = 0.0;
+  bool is_valid = false;
 };
 
 class LogicBlock {
@@ -34,7 +34,7 @@ class LogicBlock {
   void set_y(int y) { y_ = y; }
   void AddNet(Net* net);
 
-  OptimalRegion GetOptimalRegion(int chip_width, int chip_height) const;
+  OptimalRegion CalcOptimalRegion(int chip_width, int chip_height) const;
 
  private:
   std::string name_;
@@ -68,8 +68,9 @@ class Net {
   void AddBlock(LogicBlock* block);
   void AddPin(IOPin* pin);
 
-  BoundingBox ComputeBoundingBox(const LogicBlock* exclude_block = nullptr) const;
-  double CalculateHPWL() const;
+  BoundingBox CalcBoundingBox(const LogicBlock* exclude_block = nullptr) const;
+
+  double CalcHPWL() const;
 
  private:
   std::string name_;
@@ -95,7 +96,8 @@ class Design {
   const std::vector<IOPin*>& io_pins() const { return io_pins_; }
   const std::vector<Net*>& nets() const { return nets_; }
 
-  double GetTotalHPWL() const;
+  double CalcTotalHPWL() const;
+
   std::vector<std::vector<int>> GetUsageMap() const;
   std::vector<std::vector<LogicBlock*>> GetGridGraph() const;
 
