@@ -6,12 +6,39 @@
 #include "../design/design.hpp"
 
 struct Config {
+  // ---------- time ----------
   double time_limit_seconds = 220.0;
-  double initial_region_prob = 0.3;
-  double region_prob_step = 0.02;
-  double max_region_prob = 0.9;
+
+  // ---------- temperature ----------
   double min_temperature = 1e-5;
-  int initial_moves = 50000;
+
+  // ---------- optimal region probability ----------
+  double initial_region_prob = 0.3;
+  double min_region_prob = 0.1;
+  double max_region_prob = 0.8;
+  double region_prob_step_up = 0.05;
+  double region_prob_step_down = 0.05;
+
+  // ---------- moves per temperature ----------
+  int initial_moves_per_temp = 50000;
+  int min_moves_per_temp = 20000;
+  int max_moves_per_temp = 50000;
+  double moves_scale_up = 1.2;
+  double moves_scale_down = 0.8;
+
+  // ---------- range limiter ----------
+  double initial_range_limiter = 1.0;
+  double min_range_limiter = 0.2;
+  double max_range_limiter = 1.0;
+  double target_acceptance = 0.44;
+
+  // ---------- early stop ----------
+  int max_no_improve_rounds = 10;
+  double min_improve = 1e-4;
+
+  // ---------- random seed ----------
+  // 0 represnt use random_device
+  unsigned int random_seed = 0;
 };
 
 struct State {
@@ -23,6 +50,7 @@ struct State {
 class Placer {
  public:
   Placer(Design& design, const Config& config, std::chrono::steady_clock::time_point start_time);
+  void InitPlace();
   void Run();
 
  private:
@@ -35,7 +63,6 @@ class Placer {
   std::vector<std::vector<LogicBlock*>> grid_graph_;
   std::mt19937 rng_;
 
-  void InitPlace();
   void InitState();
   double EstimateInitTemperature();
 
@@ -44,5 +71,6 @@ class Placer {
 
   void UpdateState(const std::vector<Net*>& nets, int val);
   void SwapPosition(LogicBlock* block1, LogicBlock* block2, int target_x, int target_y);
-  void UpdateParameters(double& temperature, double& region_prob, int& moves_per_temperature, const double& acceptance_rate);
+
+  void UpdateParameters(double& temperature, double& region_prob, int& moves_per_temperature, double& range_limiter, const double& acceptance_rate);
 };

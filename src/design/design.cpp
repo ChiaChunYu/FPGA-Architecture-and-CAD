@@ -4,7 +4,7 @@
 #include <cmath>
 #include <limits>
 
-// ------------------------------ LogicBlock Implementation------------------------ //
+// ------------------------------ LogicBlock Implementation------------------------
 
 LogicBlock::LogicBlock(const std::string& name) : name_(name), x_(0), y_(0) {}
 
@@ -62,11 +62,11 @@ OptimalRegion LogicBlock::CalcOptimalRegion(int chip_width, int chip_height) con
   return {lower_x, lower_y, upper_x, upper_y};
 }
 
-// ------------------------------ IOPin Implementation----------------------------- //
+// ------------------------------ IOPin Implementation-----------------------------
 
 IOPin::IOPin(const std::string& name, double x, double y) : name_(name), x_(x), y_(y) {}
 
-// ------------------------------ Net Implementation------------------------------- //
+// ------------------------------ Net Implementation-------------------------------
 
 Net::Net(const std::string& name, int degree) : name_(name), degree_(degree) {
   blocks_.reserve(degree);
@@ -122,6 +122,120 @@ double Net::CalcHPWL() const {
   if (!bounding_box.is_valid) return 0.0;
 
   return (bounding_box.upper_x - bounding_box.lower_x) + (bounding_box.upper_y - bounding_box.lower_y);
+}
+
+void Net::CalcCachedBoundingBox() {
+  BoundingBox boundingbox = CalcBoundingBox(nullptr);
+  cached_bbox_ = boundingbox;
+
+  if (!boundingbox.is_valid) {
+    min_x_count_ = max_x_count_ = min_y_count_ = max_y_count_ = 0;
+    return;
+  }
+
+  double lower_x = boundingbox.lower_x;
+  double upper_x = boundingbox.upper_x;
+  double lower_y = boundingbox.lower_y;
+  double upper_y = boundingbox.upper_y;
+
+  int min_x_cnt = 0, max_x_cnt = 0;
+  int min_y_cnt = 0, max_y_cnt = 0;
+
+  for (LogicBlock* block : blocks_) {
+    double x_lower = static_cast<double>(block->x());
+    double y_lower = static_cast<double>(block->y());
+    double x_upper = x_lower + 1.0;
+    double y_upper = y_lower + 1.0;
+
+    if (x_lower == lower_x) ++min_x_cnt;
+    if (x_upper == upper_x) ++max_x_cnt;
+    if (y_lower == lower_y) ++min_y_cnt;
+    if (y_upper == upper_y) ++max_y_cnt;
+  }
+
+  for (IOPin* pin : pins_) {
+    double x = pin->x();
+    double y = pin->y();
+    if (x == lower_x) ++min_x_cnt;
+    if (x == upper_x) ++max_x_cnt;
+    if (y == lower_y) ++min_y_cnt;
+    if (y == upper_y) ++max_y_cnt;
+  }
+
+  min_x_count_ = min_x_cnt;
+  max_x_count_ = max_x_cnt;
+  min_y_count_ = min_y_cnt;
+  max_y_count_ = max_y_cnt;
+}
+
+void Net::UpdateCachedBoundingBox(const LogicBlock* block, int old_x, int old_y) {
+  if (!cached_bbox_.is_valid) {
+    CalcCachedBoundingBox();
+    return;
+  }
+
+  double lower_x = cached_bbox_.lower_x;
+  double upper_x = cached_bbox_.upper_x;
+  double lower_y = cached_bbox_.lower_y;
+  double upper_y = cached_bbox_.upper_y;
+
+  bool need_recompute = false;
+
+  double old_x_lower = static_cast<double>(old_x);
+  double old_y_lower = static_cast<double>(old_y);
+  double old_x_upper = old_x_lower + 1.0;
+  double old_y_upper = old_y_lower + 1.0;
+
+  if (old_x_lower == lower_x) {
+    if (--min_x_count_ == 0) need_recompute = true;
+  }
+  if (old_x_upper == upper_x) {
+    if (--max_x_count_ == 0) need_recompute = true;
+  }
+  if (old_y_lower == lower_y) {
+    if (--min_y_count_ == 0) need_recompute = true;
+  }
+  if (old_y_upper == upper_y) {
+    if (--max_y_count_ == 0) need_recompute = true;
+  }
+
+  if (need_recompute) {
+    CalcCachedBoundingBox();
+    return;
+  }
+
+  double new_x_lower = static_cast<double>(block->x());
+  double new_y_lower = static_cast<double>(block->y());
+  double new_x_upper = new_x_lower + 1.0;
+  double new_y_upper = new_y_lower + 1.0;
+
+  if (new_x_lower < cached_bbox_.lower_x) {
+    cached_bbox_.lower_x = new_x_lower;
+    min_x_count_ = 1;
+  } else if (new_x_lower == cached_bbox_.lower_x) {
+    ++min_x_count_;
+  }
+
+  if (new_x_upper > cached_bbox_.upper_x) {
+    cached_bbox_.upper_x = new_x_upper;
+    max_x_count_ = 1;
+  } else if (new_x_upper == cached_bbox_.upper_x) {
+    ++max_x_count_;
+  }
+
+  if (new_y_lower < cached_bbox_.lower_y) {
+    cached_bbox_.lower_y = new_y_lower;
+    min_y_count_ = 1;
+  } else if (new_y_lower == cached_bbox_.lower_y) {
+    ++min_y_count_;
+  }
+
+  if (new_y_upper > cached_bbox_.upper_y) {
+    cached_bbox_.upper_y = new_y_upper;
+    max_y_count_ = 1;
+  } else if (new_y_upper == cached_bbox_.upper_y) {
+    ++max_y_count_;
+  }
 }
 
 // ------------------------------ Design Implementation---------------------------- //

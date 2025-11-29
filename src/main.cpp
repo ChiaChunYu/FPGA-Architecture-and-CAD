@@ -14,15 +14,25 @@ int main(int argc, char* argv[]) {
   if (argc != 3) {
     throw std::runtime_error("Usage: ./placer <input_file> <output_file>");
   }
-  
+
   std::string inputFile = argv[1];
   std::string outputFile = argv[2];
+  std::string baseName = outputFile;
+  std::size_t dotPos = baseName.find_last_of('.');
+  if (dotPos != std::string::npos) {
+    baseName = baseName.substr(0, dotPos);
+  }
+  std::string svg_inital = baseName + "_initial" + ".svg";
+  std::string svg_final = baseName + "_final" + ".svg";
 
   Design design;
   Parser::Parse(inputFile, design);
-  Config config; 
+  Config config;
   Placer placer(design, config, execution_start);
+  placer.InitPlace();
+  Writer::ExportDesignToSVG(design, svg_inital);
   placer.Run();
+  Writer::ExportDesignToSVG(design, svg_final);
   Writer::Write(outputFile, design);
 
   auto endTime = std::chrono::high_resolution_clock::now();

@@ -64,19 +64,28 @@ class Net {
   const std::string& name() const { return name_; }
   const std::vector<LogicBlock*>& blocks() const { return blocks_; }
   const std::vector<IOPin*>& pins() const { return pins_; }
+  const BoundingBox& cached_bbox() const { return cached_bbox_; }
 
   void AddBlock(LogicBlock* block);
   void AddPin(IOPin* pin);
 
   BoundingBox CalcBoundingBox(const LogicBlock* exclude_block = nullptr) const;
-
   double CalcHPWL() const;
+
+  void CalcCachedBoundingBox();
+  void UpdateCachedBoundingBox(const LogicBlock* block, int old_x, int old_y);
 
  private:
   std::string name_;
   int degree_;
   std::vector<LogicBlock*> blocks_;
   std::vector<IOPin*> pins_;
+
+  BoundingBox cached_bbox_;
+  int min_x_count_ = 0;
+  int max_x_count_ = 0;
+  int min_y_count_ = 0;
+  int max_y_count_ = 0;
 };
 
 class Design {

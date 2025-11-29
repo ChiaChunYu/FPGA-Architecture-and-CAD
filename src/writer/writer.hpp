@@ -5,5 +5,6 @@ class Design;
 
 class Writer {
  public:
+  static void ExportDesignToSVG(const Design& design, const std::string& filename);
   static void Write(const std::string& filename, const Design& design);
 };
