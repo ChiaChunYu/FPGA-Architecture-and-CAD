@@ -13,22 +13,22 @@ struct Config {
   double min_temperature = 1e-5;
 
   // ---------- optimal region probability ----------
-  double initial_region_prob = 0.3;
-  double min_region_prob = 0.1;
-  double max_region_prob = 0.8;
+  double initial_region_prob = 0.5;
+  double min_region_prob = 1.0;
+  double max_region_prob = 0.5;
   double region_prob_step_up = 0.05;
   double region_prob_step_down = 0.05;
 
   // ---------- moves per temperature ----------
-  int initial_moves_per_temp = 50000;
-  int min_moves_per_temp = 20000;
-  int max_moves_per_temp = 50000;
+  int initial_moves_per_temp = 100000;
+  int min_moves_per_temp = 100000;
+  int max_moves_per_temp = 100000;
   double moves_scale_up = 1.2;
   double moves_scale_down = 0.8;
 
   // ---------- range limiter ----------
   double initial_range_limiter = 1.0;
-  double min_range_limiter = 0.2;
+  double min_range_limiter = 1.0;
   double max_range_limiter = 1.0;
   double target_acceptance = 0.44;
 
@@ -38,7 +38,7 @@ struct Config {
 
   // ---------- random seed ----------
   // 0 represnt use random_device
-  unsigned int random_seed = 0;
+  unsigned int random_seed = 1234;
 };
 
 struct State {
@@ -62,6 +62,7 @@ class Placer {
   std::vector<std::vector<int>> usage_map_;
   std::vector<std::vector<LogicBlock*>> grid_graph_;
   std::mt19937 rng_;
+  double exponent_ = 3.0;
 
   void InitState();
   double EstimateInitTemperature();

@@ -22,18 +22,32 @@ Placer::Placer(Design& design, const Config& config, std::chrono::steady_clock::
 }
 
 void Placer::InitPlace() {
-  int current_x = 0;
-  int current_y = 0;
-  int chip_width = design_.chip_width();
+  auto& logic_blocks = design_.logic_blocks();
+  int size = static_cast<int>(logic_blocks.size());
 
-  for (auto block : design_.logic_blocks()) {
-    block->set_x(current_x);
-    block->set_y(current_y);
-    current_x++;
-    if (current_x >= chip_width) {
-      current_x = 0;
-      current_y++;
+  int width = design_.chip_width();
+  int height = design_.chip_height();
+  int capacity = width * height;
+
+  if (size > capacity) {
+    throw std::runtime_error("Error: Not enough chip area for all logic blocks.");
+  }
+
+  std::vector<std::pair<int, int>> positions;
+  positions.reserve(capacity);
+  for (int y = 0; y < height; ++y) {
+    for (int x = 0; x < width; ++x) {
+      positions.emplace_back(x, y);
     }
+  }
+
+  std::shuffle(positions.begin(), positions.end(), rng_);
+
+  for (int i = 0; i < size; ++i) {
+    int x = positions[i].first;
+    int y = positions[i].second;
+    logic_blocks[i]->set_x(x);
+    logic_blocks[i]->set_y(y);
   }
 }
 
@@ -135,7 +149,7 @@ double Placer::CalcCost() const {
   double exponent = min_exp + t * (max_exp - min_exp);
   // if (congestion_coefficient < 1.05) exponent = min_exp;
 
-  return state_.total_hpwl * std::pow(congestion_coefficient, exponent);
+  return state_.total_hpwl * std::pow(congestion_coefficient, 1);
 }
 
 void Placer::UpdateState(const std::vector<Net*>& nets, int val) {
@@ -226,7 +240,7 @@ void Placer::UpdateParameters(double& temperature, double& region_prob, int& mov
   // ---------- temperature ----------
   if (acceptance_rate > 0.95) {
     temperature *= 0.5;
-  } else if (acceptance_rate > 0.75) {
+  } else if (acceptance_rate > 0.8) {
     temperature *= 0.92;
   } else if (acceptance_rate > 0.15) {
     temperature *= 0.95;
@@ -236,7 +250,7 @@ void Placer::UpdateParameters(double& temperature, double& region_prob, int& mov
   // ---------- optimal region probability ----------
   if (acceptance_rate > 0.85) {
     region_prob -= config_.region_prob_step_down;
-  } else if (acceptance_rate > 0.75) {
+  } else if (acceptance_rate > 0.8) {
     region_prob += config_.region_prob_step_up;
   } else if (acceptance_rate > 0.15) {
     region_prob += config_.region_prob_step_up;
@@ -274,8 +288,14 @@ void Placer::UpdateParameters(double& temperature, double& region_prob, int& mov
 
   if (range_limiter < config_.min_range_limiter) range_limiter = config_.min_range_limiter;
   if (range_limiter > config_.max_range_limiter) range_limiter = config_.max_range_limiter;
-}
 
+  // --- exponent update ---
+  if (acceptance_rate < 0.5 & acceptance_rate > 0.3) {
+    exponent_ = 2;
+  } else if (acceptance_rate <= 0.3) {
+    exponent_ = 1;
+  }
+}
 void Placer::Run() {
   InitState();
   int round_count = 0;
@@ -388,6 +408,7 @@ void Placer::Run() {
 
     double acceptance_rate = static_cast<double>(accepted_moves) / static_cast<double>(moves_per_temperature);
     UpdateParameters(temperature, current_region_prob, moves_per_temperature, range_limiter, acceptance_rate);
+    current_cost = CalcCost();
     round_count++;
 
     std::cout << std::fixed << std::setprecision(4) << "Round " << std::setw(3) << round_count << " | T: " << std::setprecision(5) << temperature
@@ -398,16 +419,16 @@ void Placer::Run() {
 
     double improvement = best_cost - round_best_cost;
 
-    if (abs(improvement) > min_improve) {
-      best_cost = round_best_cost;
-      no_improve_rounds = 0;
-    } else {
-      ++no_improve_rounds;
-      if (no_improve_rounds >= max_no_improve_rounds) {
-        std::cout << "[SA] Early stopping: no significant cost improvement in " << max_no_improve_rounds << " rounds." << std::endl;
-        break;
-      }
-    }
+    // if (abs(improvement) > min_improve) {
+    //   best_cost = round_best_cost;
+    //   no_improve_rounds = 0;
+    // } else {
+    //   ++no_improve_rounds;
+    //   if (no_improve_rounds >= max_no_improve_rounds) {
+    //     std::cout << "[SA] Early stopping: no significant cost improvement in " << max_no_improve_rounds << " rounds." << std::endl;
+    //     break;
+    //   }
+    // }
   }
   std::cout << "[SA] Final Cost: " << current_cost << " (HPWL: " << state_.total_hpwl << ", CC: " << CongestionCoefficient() << ")" << std::endl;
 }

@@ -22,7 +22,7 @@ int main(int argc, char* argv[]) {
   if (dotPos != std::string::npos) {
     baseName = baseName.substr(0, dotPos);
   }
-  std::string svg_inital = baseName + "_initial" + ".svg";
+  std::string svg_initial = baseName + "_initial" + ".svg";
   std::string svg_final = baseName + "_final" + ".svg";
 
   Design design;
@@ -30,7 +30,7 @@ int main(int argc, char* argv[]) {
   Config config;
   Placer placer(design, config, execution_start);
   placer.InitPlace();
-  Writer::ExportDesignToSVG(design, svg_inital);
+  Writer::ExportDesignToSVG(design, svg_initial);
   placer.Run();
   Writer::ExportDesignToSVG(design, svg_final);
   Writer::Write(outputFile, design);

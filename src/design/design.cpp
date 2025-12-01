@@ -43,12 +43,14 @@ OptimalRegion LogicBlock::CalcOptimalRegion(int chip_width, int chip_height) con
 
   std::nth_element(buf_x.begin(), buf_x.begin() + mid_upper, buf_x.end());
   double raw_ux = buf_x[mid_upper];
-  std::nth_element(buf_x.begin(), buf_x.begin() + mid_lower, buf_x.begin() + mid_upper);
+  // std::nth_element(buf_x.begin(), buf_x.begin() + mid_lower, buf_x.begin() + mid_upper);
+  std::nth_element(buf_x.begin(), buf_x.begin() + mid_lower, buf_x.end());
   double raw_lx = buf_x[mid_lower];
 
   std::nth_element(buf_y.begin(), buf_y.begin() + mid_upper, buf_y.end());
   double raw_uy = buf_y[mid_upper];
-  std::nth_element(buf_y.begin(), buf_y.begin() + mid_lower, buf_y.begin() + mid_upper);
+  // std::nth_element(buf_y.begin(), buf_y.begin() + mid_lower, buf_y.begin() + mid_upper);
+  std::nth_element(buf_y.begin(), buf_y.begin() + mid_lower, buf_y.end());
   double raw_ly = buf_y[mid_lower];
 
   int lower_x = std::max(0, std::min(chip_width - 1, static_cast<int>(std::floor(raw_lx))));

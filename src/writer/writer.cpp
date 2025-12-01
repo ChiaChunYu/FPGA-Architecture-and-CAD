@@ -13,13 +13,13 @@ void Writer::ExportDesignToSVG(const Design& design, const std::string& filename
     return;
   }
 
-  int w = design.chip_width();
-  int h = design.chip_height();
+  int width = design.chip_width();
+  int height = design.chip_height();
   const auto usage_map = design.GetUsageMap();
 
   int max_usage = 0;
-  for (int x = 0; x < w; ++x) {
-    for (int y = 0; y < h; ++y) {
+  for (int x = 0; x < width; ++x) {
+    for (int y = 0; y < height; ++y) {
       if (usage_map[x][y] > max_usage) {
         max_usage = usage_map[x][y];
       }
@@ -28,12 +28,12 @@ void Writer::ExportDesignToSVG(const Design& design, const std::string& filename
   if (max_usage == 0) max_usage = 1;
 
   out << "<svg xmlns=\"http://www.w3.org/2000/svg\" "
-      << "viewBox=\"0 0 " << w << " " << h << "\" "
+      << "viewBox=\"0 0 " << width << " " << height << "\" "
       << "width=\"600\" height=\"600\" "
       << "style=\"background-color: white;\">\n";
 
-  for (int x = 0; x < w; ++x) {
-    for (int y = 0; y < h; ++y) {
+  for (int x = 0; x < width; ++x) {
+    for (int y = 0; y < height; ++y) {
       int val = usage_map[x][y];
       if (val == 0) continue;
 
@@ -43,7 +43,8 @@ void Writer::ExportDesignToSVG(const Design& design, const std::string& filename
       out << "<rect x=\"" << x << "\" y=\"" << y << "\" "
           << "width=\"1\" height=\"1\" "
           << "fill=\"rgb(255," << color_val << "," << color_val << ")\" "
-          << "stroke=\"none\" />\n";
+          << "stroke=\"none\" "
+          << "shape-rendering=\"crispEdges\" />\n";
     }
   }
 
