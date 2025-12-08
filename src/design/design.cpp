@@ -43,13 +43,11 @@ OptimalRegion LogicBlock::CalcOptimalRegion(int chip_width, int chip_height) con
 
   std::nth_element(buf_x.begin(), buf_x.begin() + mid_upper, buf_x.end());
   double raw_ux = buf_x[mid_upper];
-  // std::nth_element(buf_x.begin(), buf_x.begin() + mid_lower, buf_x.begin() + mid_upper);
   std::nth_element(buf_x.begin(), buf_x.begin() + mid_lower, buf_x.end());
   double raw_lx = buf_x[mid_lower];
 
   std::nth_element(buf_y.begin(), buf_y.begin() + mid_upper, buf_y.end());
   double raw_uy = buf_y[mid_upper];
-  // std::nth_element(buf_y.begin(), buf_y.begin() + mid_lower, buf_y.begin() + mid_upper);
   std::nth_element(buf_y.begin(), buf_y.begin() + mid_lower, buf_y.end());
   double raw_ly = buf_y[mid_lower];
 
@@ -64,6 +62,37 @@ OptimalRegion LogicBlock::CalcOptimalRegion(int chip_width, int chip_height) con
   return {lower_x, lower_y, upper_x, upper_y};
 }
 
+std::pair<int, int> LogicBlock::CalcCenter(int chip_width, int chip_height) const {
+  if (nets_.empty()) {
+    return {0, 0};
+  }
+
+  double sum_center_x = 0.0;
+  double sum_center_y = 0.0;
+  int cnt = 0;
+
+  for (auto net : this->nets_) {
+    BoundingBox bbox = net->cached_bbox();
+    if (bbox.is_valid) {
+      double center_x = (bbox.lower_x + bbox.upper_x) / 2;
+      double center_y = (bbox.lower_y + bbox.upper_y) / 2;
+      sum_center_x += center_x;
+      sum_center_y += center_y;
+      cnt++;
+    }
+  }
+
+  if (cnt == 0) {
+    return {0, 0};
+  }
+
+  int avg_center_x = static_cast<int>(std::round(sum_center_x / cnt));
+  int avg_center_y = static_cast<int>(std::round(sum_center_y / cnt));
+  int center_x = std::max(0, std::min(chip_width - 1, avg_center_x));
+  int center_y = std::max(0, std::min(chip_height - 1, avg_center_y));
+
+  return {center_x, center_y};
+}
 // ------------------------------ IOPin Implementation-----------------------------
 
 IOPin::IOPin(const std::string& name, double x, double y) : name_(name), x_(x), y_(y) {}
@@ -144,24 +173,24 @@ void Net::CalcCachedBoundingBox() {
   int min_y_cnt = 0, max_y_cnt = 0;
 
   for (LogicBlock* block : blocks_) {
-    double x_lower = static_cast<double>(block->x());
-    double y_lower = static_cast<double>(block->y());
-    double x_upper = x_lower + 1.0;
-    double y_upper = y_lower + 1.0;
+    double block_x_lower = static_cast<double>(block->x());
+    double block_y_lower = static_cast<double>(block->y());
+    double block_x_upper = block_x_lower + 1.0;
+    double block_y_upper = block_y_lower + 1.0;
 
-    if (x_lower == lower_x) ++min_x_cnt;
-    if (x_upper == upper_x) ++max_x_cnt;
-    if (y_lower == lower_y) ++min_y_cnt;
-    if (y_upper == upper_y) ++max_y_cnt;
+    if (block_x_lower == lower_x) ++min_x_cnt;
+    if (block_x_upper == upper_x) ++max_x_cnt;
+    if (block_y_lower == lower_y) ++min_y_cnt;
+    if (block_y_upper == upper_y) ++max_y_cnt;
   }
 
   for (IOPin* pin : pins_) {
-    double x = pin->x();
-    double y = pin->y();
-    if (x == lower_x) ++min_x_cnt;
-    if (x == upper_x) ++max_x_cnt;
-    if (y == lower_y) ++min_y_cnt;
-    if (y == upper_y) ++max_y_cnt;
+    double pin_x = pin->x();
+    double pin_y = pin->y();
+    if (pin_x == lower_x) ++min_x_cnt;
+    if (pin_x == upper_x) ++max_x_cnt;
+    if (pin_y == lower_y) ++min_y_cnt;
+    if (pin_y == upper_y) ++max_y_cnt;
   }
 
   min_x_count_ = min_x_cnt;
@@ -283,7 +312,7 @@ std::vector<std::vector<int>> Design::GetUsageMap() const {
 
     for (int x = start_x; x < end_x; ++x) {
       for (int y = start_y; y < end_y; ++y) {
-        usage_map[x][y]++;
+        ++usage_map[x][y];
       }
     }
   }

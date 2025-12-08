@@ -36,6 +36,8 @@ class LogicBlock {
 
   OptimalRegion CalcOptimalRegion(int chip_width, int chip_height) const;
 
+  std::pair<int,int> CalcCenter(int chip_width, int chip_height) const;
+
  private:
   std::string name_;
   int x_;

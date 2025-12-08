@@ -14,31 +14,31 @@ struct Config {
 
   // ---------- optimal region probability ----------
   double initial_region_prob = 0.5;
-  double min_region_prob = 1.0;
-  double max_region_prob = 0.5;
-  double region_prob_step_up = 0.05;
-  double region_prob_step_down = 0.05;
+  double min_region_prob = 0.5;
+  double max_region_prob = 0.9;
+  double region_prob_step_up = 0.02;
+  double region_prob_step_down = 0.02;
 
   // ---------- moves per temperature ----------
-  int initial_moves_per_temp = 100000;
-  int min_moves_per_temp = 100000;
-  int max_moves_per_temp = 100000;
+  int initial_moves_per_temp = 60000;
+  int min_moves_per_temp = 60000;
+  int max_moves_per_temp = 60000;
   double moves_scale_up = 1.2;
   double moves_scale_down = 0.8;
 
-  // ---------- range limiter ----------
+  // ---------- range limiter (Previously window_scale) ----------
   double initial_range_limiter = 1.0;
-  double min_range_limiter = 1.0;
+  double min_range_limiter = 0.01;
   double max_range_limiter = 1.0;
-  double target_acceptance = 0.44;
 
-  // ---------- early stop ----------
-  int max_no_improve_rounds = 10;
-  double min_improve = 1e-4;
+  // ---------- Strategies ----------
+  // true: Use CalcOptimalRegion (median/quantile method)
+  // false: Use CalcCenter (mean method + search radius)
+  bool use_optimal_region_calc = false;
 
   // ---------- random seed ----------
   // 0 represnt use random_device
-  unsigned int random_seed = 1234;
+  unsigned int random_seed = 0;
 };
 
 struct State {
@@ -62,7 +62,8 @@ class Placer {
   std::vector<std::vector<int>> usage_map_;
   std::vector<std::vector<LogicBlock*>> grid_graph_;
   std::mt19937 rng_;
-  double exponent_ = 3.0;
+
+  double exponent_cc_ = 3.0;
 
   void InitState();
   double EstimateInitTemperature();
@@ -73,5 +74,6 @@ class Placer {
   void UpdateState(const std::vector<Net*>& nets, int val);
   void SwapPosition(LogicBlock* block1, LogicBlock* block2, int target_x, int target_y);
 
-  void UpdateParameters(double& temperature, double& region_prob, int& moves_per_temperature, double& range_limiter, const double& acceptance_rate);
+  void UpdateParameters(double& temperature, double& region_prob, int& moves_per_temperature, double& range_limiter, double initial_temperature,
+                        double time_ratio, const double& acceptance_rate);
 };
