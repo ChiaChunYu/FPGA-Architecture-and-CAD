@@ -109,8 +109,8 @@ class Design {
 
   double CalcTotalHPWL() const;
 
-  std::vector<std::vector<int>> GetUsageMap() const;
-  std::vector<std::vector<LogicBlock*>> GetGridGraph() const;
+  std::vector<int> GetUsageMap() const;
+  std::vector<LogicBlock*> GetGridGraph() const;
 
  private:
   int chip_width_;

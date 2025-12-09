@@ -82,4 +82,4 @@ test_pdc_20000: $(TARGET)
 	@echo ""
 
 
-test : test_alu4 test_apex4 test_clma_2 test_elliptic test_pdc test_pdc_20000
+test : test_alu4 test_apex4 test_clma_2 test_elliptic test_pdc

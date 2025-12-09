@@ -298,8 +298,8 @@ double Design::CalcTotalHPWL() const {
   return total_hpwl;
 }
 
-std::vector<std::vector<int>> Design::GetUsageMap() const {
-  std::vector<std::vector<int>> usage_map(chip_width_, std::vector<int>(chip_height_, 0));
+std::vector<int> Design::GetUsageMap() const {
+  std::vector<int> usage_map(chip_width_ * chip_height_, 0);
 
   for (const auto& net : nets_) {
     BoundingBox boundingbox = net->CalcBoundingBox(nullptr);
@@ -310,9 +310,10 @@ std::vector<std::vector<int>> Design::GetUsageMap() const {
     int start_y = std::max(0, static_cast<int>(std::floor(boundingbox.lower_y)));
     int end_y = std::min(chip_height_, static_cast<int>(std::ceil(boundingbox.upper_y)));
 
-    for (int x = start_x; x < end_x; ++x) {
-      for (int y = start_y; y < end_y; ++y) {
-        ++usage_map[x][y];
+    for (int y = start_y; y < end_y; ++y) {
+      int row_offset = y * chip_width_;
+      for (int x = start_x; x < end_x; ++x) {
+        usage_map[row_offset + x]++;
       }
     }
   }
@@ -320,15 +321,15 @@ std::vector<std::vector<int>> Design::GetUsageMap() const {
   return usage_map;
 }
 
-std::vector<std::vector<LogicBlock*>> Design::GetGridGraph() const {
-  std::vector<std::vector<LogicBlock*>> grid_graph(chip_width_, std::vector<LogicBlock*>(chip_height_, nullptr));
+std::vector<LogicBlock*> Design::GetGridGraph() const {
+  std::vector<LogicBlock*> grid_graph(chip_width_ * chip_height_, nullptr);
 
   for (size_t i = 0; i < logic_blocks_.size(); ++i) {
     const auto& block = logic_blocks_[i];
     int x = block->x();
     int y = block->y();
     if (x >= 0 && x < chip_width_ && y >= 0 && y < chip_height_) {
-      grid_graph[x][y] = block;
+      grid_graph[y * chip_width_ + x] = block;
     }
   }
 

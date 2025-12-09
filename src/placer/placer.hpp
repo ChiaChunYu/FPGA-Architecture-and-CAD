@@ -20,9 +20,9 @@ struct Config {
   double region_prob_step_down = 0.02;
 
   // ---------- moves per temperature ----------
-  int initial_moves_per_temp = 60000;
-  int min_moves_per_temp = 60000;
-  int max_moves_per_temp = 60000;
+  int initial_moves_per_temp = 80000;
+  int min_moves_per_temp = 50000;
+  int max_moves_per_temp = 100000;
   double moves_scale_up = 1.2;
   double moves_scale_down = 0.8;
 
@@ -47,6 +47,12 @@ struct State {
   long long sum_squared_usage = 0;
 };
 
+struct AffectedNetInfo {
+    Net* net;
+    bool has_b1;
+    bool has_b2;
+  };
+
 class Placer {
  public:
   Placer(Design& design, const Config& config, std::chrono::steady_clock::time_point start_time);
@@ -59,11 +65,9 @@ class Placer {
   std::chrono::steady_clock::time_point start_time_;
 
   State state_;
-  std::vector<std::vector<int>> usage_map_;
-  std::vector<std::vector<LogicBlock*>> grid_graph_;
+  std::vector<int> usage_map_;
+  std::vector<LogicBlock*> grid_graph_;
   std::mt19937 rng_;
-
-  double exponent_cc_ = 3.0;
 
   void InitState();
   double EstimateInitTemperature();
@@ -75,5 +79,5 @@ class Placer {
   void SwapPosition(LogicBlock* block1, LogicBlock* block2, int target_x, int target_y);
 
   void UpdateParameters(double& temperature, double& region_prob, int& moves_per_temperature, double& range_limiter, double initial_temperature,
-                        double time_ratio, const double& acceptance_rate);
+                        const double& acceptance_rate);
 };

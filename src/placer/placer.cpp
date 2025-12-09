@@ -20,6 +20,7 @@ Placer::Placer(Design& design, const Config& config, std::chrono::steady_clock::
   }
 }
 
+// Initial random placement of logic blocks
 void Placer::InitPlace() {
   auto& logic_blocks = design_.logic_blocks();
   int size = static_cast<int>(logic_blocks.size());
@@ -50,259 +51,6 @@ void Placer::InitPlace() {
   }
 }
 
-void Placer::InitState() {
-  usage_map_ = design_.GetUsageMap();
-  grid_graph_ = design_.GetGridGraph();
-
-  int chip_width = design_.chip_width();
-  int chip_height = design_.chip_height();
-
-  long long sum_usage = 0;
-  long long sum_squared_usage = 0;
-
-  for (int x = 0; x < chip_width; ++x) {
-    for (int y = 0; y < chip_height; ++y) {
-      long long v = usage_map_[x][y];
-      sum_usage += v;
-      sum_squared_usage += v * v;
-    }
-  }
-
-  state_.total_hpwl = design_.CalcTotalHPWL();
-  state_.sum_usage = sum_usage;
-  state_.sum_squared_usage = sum_squared_usage;
-
-  for (Net* net : design_.nets()) {
-    net->CalcCachedBoundingBox();
-  }
-}
-
-double Placer::EstimateInitTemperature() {
-  int chip_width = design_.chip_width();
-  int chip_height = design_.chip_height();
-  const auto& blocks = design_.logic_blocks();
-
-  double base_cost = CalcCost();
-  double sum_pos_delta = 0.0;
-  int sample_moves = 1000;
-  int count_pos = 0;
-
-  if (blocks.empty()) return 1.0;
-
-  std::uniform_int_distribution<int> dist_block(0, blocks.size() - 1);
-  std::uniform_int_distribution<int> dist_w(0, chip_width - 1);
-  std::uniform_int_distribution<int> dist_h(0, chip_height - 1);
-
-  for (int i = 0; i < sample_moves; ++i) {
-    LogicBlock* block1 = blocks[dist_block(rng_)];
-    int x1 = block1->x();
-    int y1 = block1->y();
-
-    int x2, y2;
-    do {
-      x2 = dist_w(rng_);
-      y2 = dist_h(rng_);
-    } while (x1 == x2 && y1 == y2);
-
-    LogicBlock* block2 = grid_graph_[x2][y2];
-
-    SwapPosition(block1, block2, x2, y2);
-    double new_cost = CalcCost();
-    double delta = new_cost - base_cost;
-    if (delta > 0.0) {
-      sum_pos_delta += delta;
-      count_pos++;
-    }
-    SwapPosition(block1, block2, x1, y1);
-  }
-
-  if (count_pos == 0) return 1.0;
-
-  double avg_pos_delta = sum_pos_delta / static_cast<double>(count_pos);
-  double p0 = 0.9;
-  double T0 = -avg_pos_delta / std::log(p0);
-  if (T0 <= 0.0) T0 = 1.0;
-  return T0;
-}
-
-double Placer::CongestionCoefficient() const {
-  long long num_sites = static_cast<long long>(design_.chip_width()) * static_cast<long long>(design_.chip_height());
-  if (num_sites == 0) return 1.0;
-
-  double mean_usage = static_cast<double>(state_.sum_usage) / static_cast<double>(num_sites);
-  double mean_sq = static_cast<double>(state_.sum_squared_usage) / static_cast<double>(num_sites);
-
-  if (mean_usage == 0.0) return 1.0;
-  return mean_sq / (mean_usage * mean_usage);
-}
-
-double Placer::CalcCost() const {
-  double congestion_coefficient = CongestionCoefficient();
-
-  // return state_.total_hpwl * congestion_coefficient;
-  return state_.total_hpwl * std::pow(congestion_coefficient, exponent_cc_);
-}
-
-void Placer::UpdateState(const std::vector<Net*>& nets, int val) {
-  int chip_width = design_.chip_width();
-  int chip_height = design_.chip_height();
-
-  for (Net* net : nets) {
-    const BoundingBox& boundingbox = net->cached_bbox();
-    if (!boundingbox.is_valid) continue;
-
-    double hpwl = (boundingbox.upper_x - boundingbox.lower_x) + (boundingbox.upper_y - boundingbox.lower_y);
-    state_.total_hpwl += static_cast<double>(val) * hpwl;
-
-    int start_x = std::max(0, static_cast<int>(std::floor(boundingbox.lower_x)));
-    int end_x = std::min(chip_width, static_cast<int>(std::ceil(boundingbox.upper_x)));
-    int start_y = std::max(0, static_cast<int>(std::floor(boundingbox.lower_y)));
-    int end_y = std::min(chip_height, static_cast<int>(std::ceil(boundingbox.upper_y)));
-
-    for (int x = start_x; x < end_x; ++x) {
-      for (int y = start_y; y < end_y; ++y) {
-        long long old_val = usage_map_[x][y];
-        long long new_val = old_val + val;
-
-        state_.sum_usage += (new_val - old_val);
-        state_.sum_squared_usage += (new_val * new_val - old_val * old_val);
-
-        usage_map_[x][y] = new_val;
-      }
-    }
-  }
-}
-
-void Placer::SwapPosition(LogicBlock* block1, LogicBlock* block2, int target_x, int target_y) {
-  std::vector<Net*> affected_nets;
-  affected_nets.reserve(block1->nets().size() + (block2 ? block2->nets().size() : 0));
-  affected_nets.insert(affected_nets.end(), block1->nets().begin(), block1->nets().end());
-  if (block2) {
-    affected_nets.insert(affected_nets.end(), block2->nets().begin(), block2->nets().end());
-  }
-  std::sort(affected_nets.begin(), affected_nets.end());
-  affected_nets.erase(std::unique(affected_nets.begin(), affected_nets.end()), affected_nets.end());
-
-  UpdateState(affected_nets, -1);
-
-  int x1_old = block1->x();
-  int y1_old = block1->y();
-
-  block1->set_x(target_x);
-  block1->set_y(target_y);
-  if (block2) {
-    block2->set_x(x1_old);
-    block2->set_y(y1_old);
-  }
-
-  for (Net* net : affected_nets) {
-    bool has_b1 = false;
-    bool has_b2 = false;
-    for (LogicBlock* b : net->blocks()) {
-      if (b == block1)
-        has_b1 = true;
-      else if (block2 && b == block2)
-        has_b2 = true;
-    }
-
-    if (has_b1 && has_b2) {
-      net->CalcCachedBoundingBox();
-    } else if (has_b1) {
-      net->UpdateCachedBoundingBox(block1, x1_old, y1_old);
-    } else if (block2 && has_b2) {
-      net->UpdateCachedBoundingBox(block2, target_x, target_y);
-    }
-  }
-
-  grid_graph_[x1_old][y1_old] = block2;
-  grid_graph_[target_x][target_y] = block1;
-
-  UpdateState(affected_nets, +1);
-}
-
-void Placer::UpdateParameters(double& temperature, double& region_prob, int& moves_per_temperature, double& range_limiter, double initial_temperature,
-                              double time_ratio, const double& acceptance_rate) {
-  // ------------- Optimal Region Probability -----------------
-  if (acceptance_rate > 0.85) {
-    region_prob -= config_.region_prob_step_down;
-  } else if (acceptance_rate > 0.6) {
-    region_prob += config_.region_prob_step_up;
-  } else if (acceptance_rate > 0.15) {
-    region_prob += config_.region_prob_step_up;
-  }
-  // } else {
-  //   region_prob -= config_.region_prob_step_down;
-  // }
-
-  if (region_prob < config_.min_region_prob) region_prob = config_.min_region_prob;
-  if (region_prob > config_.max_region_prob) region_prob = config_.max_region_prob;
-
-  // -------------- Temperature -----------------
-  double alpha;
-
-  if (acceptance_rate > 0.96) {
-    alpha = 0.5;
-  } else if (acceptance_rate > 0.8) {
-    alpha = 0.9;
-  } else if (acceptance_rate > 0.15) {
-    alpha = 0.95;
-  } else {
-    alpha = 0.8;
-  }
-
-  temperature *= alpha;
-
-  // ------------- Moves Per Temperature -----------------
-  if (acceptance_rate > 0.9) {
-    int new_moves = static_cast<int>(moves_per_temperature * 0.9);
-    if (new_moves < config_.min_moves_per_temp) {
-      new_moves = config_.min_moves_per_temp;
-    }
-    moves_per_temperature = new_moves;
-  } else if (acceptance_rate > 0.4) {
-    int new_moves = static_cast<int>(moves_per_temperature * 1.1);
-    if (new_moves > config_.max_moves_per_temp) {
-      new_moves = config_.max_moves_per_temp;
-    }
-    moves_per_temperature = new_moves;
-  } else {
-    int new_moves = static_cast<int>(moves_per_temperature * 1.2);
-    if (new_moves > config_.max_moves_per_temp) {
-      new_moves = config_.max_moves_per_temp;
-    }
-    moves_per_temperature = new_moves;
-  }
-
-  // ------------- Range Limiter -----------------
-  // double scale_factor = temperature / initial_temperature;
-  // if (scale_factor < 1e-8) scale_factor = 1e-8;
-
-  // double new_range_limiter = std::sqrt(scale_factor);
-
-  // if (new_range_limiter < config_.min_range_limiter) new_range_limiter = config_.min_range_limiter;
-  // if (new_range_limiter > config_.max_range_limiter) new_range_limiter = config_.max_range_limiter;
-
-  // range_limiter = new_range_limiter;
-  const double beta = 0.35;
-  double scale_factor = temperature / initial_temperature;
-  if (scale_factor < 1e-8) scale_factor = 1e-8;
-
-  double new_range_limiter = std::pow(scale_factor, beta);
-
-  if (new_range_limiter < config_.min_range_limiter) new_range_limiter = config_.min_range_limiter;
-  if (new_range_limiter > config_.max_range_limiter) new_range_limiter = config_.max_range_limiter;
-  range_limiter = new_range_limiter;
-
-  //------------- Exponent CC -----------------
-  if (range_limiter > 0.66) {
-    exponent_cc_ = 3.0;
-  } else if (range_limiter > 0.33) {
-    exponent_cc_ = 2.0;
-  } else {
-    exponent_cc_ = 1.0;
-  }
-}
-
 void Placer::Run() {
   InitState();
 
@@ -326,6 +74,7 @@ void Placer::Run() {
   std::cout << "[SA] Init Cost: " << current_cost << " | HPWL: " << state_.total_hpwl << " | CC: " << CongestionCoefficient() << std::endl;
 
   while (temperature > config_.min_temperature) {
+    auto round_start_time = std::chrono::steady_clock::now();
     auto now = std::chrono::steady_clock::now();
     std::chrono::duration<double> elapsed = now - start_time_;
 
@@ -390,7 +139,7 @@ void Placer::Run() {
         y2 = dist_y(rng_);
       } while (x1 == x2 && y1 == y2);
 
-      LogicBlock* block2 = grid_graph_[x2][y2];
+      LogicBlock* block2 = grid_graph_[y2 * chip_width + x2];
 
       SwapPosition(block1, block2, x2, y2);
       double new_cost = CalcCost();
@@ -416,6 +165,10 @@ void Placer::Run() {
 
     double acceptance_rate = (moves_per_temperature > 0) ? static_cast<double>(accepted_moves) / static_cast<double>(moves_per_temperature) : 0.0;
     ++round_count;
+    auto round_end_time = std::chrono::steady_clock::now();
+    std::chrono::duration<double> round_diff = round_end_time - round_start_time;
+    std::cout << std::fixed << std::setprecision(2) << "[SA] Round " << round_count << " completed in " << round_diff.count() << " seconds."
+              << std::endl;
 
     std::cout << std::fixed << "Round " << round_count << " | T: " << std::setprecision(5) << temperature
               << " | Acc: " << static_cast<int>(acceptance_rate * 100) << "%"
@@ -423,9 +176,243 @@ void Placer::Run() {
               << " | HPWL: " << std::setprecision(6) << state_.total_hpwl << " | CC: " << std::setprecision(6) << CongestionCoefficient()
               << " | moves: " << moves_per_temperature << std::endl;
 
-    UpdateParameters(temperature, current_region_prob, moves_per_temperature, current_range_limiter, initial_temperature, time_ratio,
-                     acceptance_rate);
-    current_cost = CalcCost();
+    UpdateParameters(temperature, current_region_prob, moves_per_temperature, current_range_limiter, initial_temperature, acceptance_rate);
   }
   std::cout << "[SA] Final Cost: " << current_cost << " (HPWL: " << state_.total_hpwl << ", CC: " << CongestionCoefficient() << ")" << std::endl;
+}
+
+void Placer::InitState() {
+  usage_map_ = design_.GetUsageMap();
+  grid_graph_ = design_.GetGridGraph();
+
+  int chip_width = design_.chip_width();
+  int chip_height = design_.chip_height();
+
+  long long sum_usage = 0;
+  long long sum_squared_usage = 0;
+
+  int total_cells = chip_width * chip_height;
+  for (int i = 0; i < total_cells; ++i) {
+    long long v = usage_map_[i];
+    sum_usage += v;
+    sum_squared_usage += v * v;
+  }
+
+  state_.total_hpwl = design_.CalcTotalHPWL();
+  state_.sum_usage = sum_usage;
+  state_.sum_squared_usage = sum_squared_usage;
+
+  for (Net* net : design_.nets()) {
+    net->CalcCachedBoundingBox();
+  }
+}
+
+double Placer::EstimateInitTemperature() {
+  int chip_width = design_.chip_width();
+  int chip_height = design_.chip_height();
+  const auto& blocks = design_.logic_blocks();
+
+  double base_cost = CalcCost();
+  double sum_pos_delta = 0.0;
+  int sample_moves = 1000;
+  int count_pos = 0;
+
+  if (blocks.empty()) return 1.0;
+
+  std::uniform_int_distribution<int> dist_block(0, blocks.size() - 1);
+  std::uniform_int_distribution<int> dist_w(0, chip_width - 1);
+  std::uniform_int_distribution<int> dist_h(0, chip_height - 1);
+
+  for (int i = 0; i < sample_moves; ++i) {
+    LogicBlock* block1 = blocks[dist_block(rng_)];
+    int x1 = block1->x();
+    int y1 = block1->y();
+
+    int x2, y2;
+    do {
+      x2 = dist_w(rng_);
+      y2 = dist_h(rng_);
+    } while (x1 == x2 && y1 == y2);
+
+    LogicBlock* block2 = grid_graph_[y2 * chip_width + x2];
+
+    SwapPosition(block1, block2, x2, y2);
+    double new_cost = CalcCost();
+    double delta = new_cost - base_cost;
+    if (delta > 0.0) {
+      sum_pos_delta += delta;
+      count_pos++;
+    }
+    SwapPosition(block1, block2, x1, y1);
+  }
+
+  if (count_pos == 0) return 1.0;
+
+  double avg_pos_delta = sum_pos_delta / static_cast<double>(count_pos);
+  double p0 = 0.9;
+  double T0 = -avg_pos_delta / std::log(p0);
+  if (T0 <= 0.0) T0 = 1.0;
+  return T0;
+}
+
+double Placer::CongestionCoefficient() const {
+  long long num_sites = static_cast<long long>(design_.chip_width()) * static_cast<long long>(design_.chip_height());
+  if (num_sites == 0) return 1.0;
+
+  double mean_usage = static_cast<double>(state_.sum_usage) / static_cast<double>(num_sites);
+  double mean_sq = static_cast<double>(state_.sum_squared_usage) / static_cast<double>(num_sites);
+
+  if (mean_usage == 0.0) return 1.0;
+  return mean_sq / (mean_usage * mean_usage);
+}
+
+double Placer::CalcCost() const {
+  double congestion_coefficient = CongestionCoefficient();
+
+  return state_.total_hpwl * congestion_coefficient;
+}
+
+void Placer::UpdateState(const std::vector<Net*>& nets, int val) {
+  int chip_width = design_.chip_width();
+  int chip_height = design_.chip_height();
+
+  for (Net* net : nets) {
+    const BoundingBox& boundingbox = net->cached_bbox();
+    if (!boundingbox.is_valid) continue;
+
+    double hpwl = (boundingbox.upper_x - boundingbox.lower_x) + (boundingbox.upper_y - boundingbox.lower_y);
+    state_.total_hpwl += static_cast<double>(val) * hpwl;
+
+    int start_x = std::max(0, static_cast<int>(std::floor(boundingbox.lower_x)));
+    int end_x = std::min(chip_width, static_cast<int>(std::ceil(boundingbox.upper_x)));
+    int start_y = std::max(0, static_cast<int>(std::floor(boundingbox.lower_y)));
+    int end_y = std::min(chip_height, static_cast<int>(std::ceil(boundingbox.upper_y)));
+
+    for (int y = start_y; y < end_y; ++y) {
+      int row_offset = y * chip_width;
+      for (int x = start_x; x < end_x; ++x) {
+        int idx = row_offset + x;
+
+        long long old_val = usage_map_[idx];
+        long long new_val = old_val + val;
+
+        state_.sum_usage += (new_val - old_val);
+        state_.sum_squared_usage += (new_val * new_val - old_val * old_val);
+
+        usage_map_[idx] = new_val;
+      }
+    }
+  }
+}
+
+void Placer::SwapPosition(LogicBlock* block1, LogicBlock* block2, int target_x, int target_y) {
+  const auto& nets1 = block1->nets();
+  const std::vector<Net*>& nets2 = block2 ? block2->nets() : std::vector<Net*>{};
+  std::vector<AffectedNetInfo> net_infos;
+  net_infos.reserve(nets1.size() + nets2.size());
+
+  for (Net* net : nets1) {
+    net_infos.push_back({net, true, false});
+  }
+
+  if (block2) {
+    for (Net* net : nets2) {
+      bool found = false;
+      for (auto& info : net_infos) {
+        if (info.net == net) {
+          info.has_b2 = true;
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        net_infos.push_back({net, false, true});
+      }
+    }
+  }
+
+  std::vector<Net*> affected_nets;
+  affected_nets.reserve(net_infos.size());
+  for (const auto& info : net_infos) {
+    affected_nets.push_back(info.net);
+  }
+
+  UpdateState(affected_nets, -1);
+
+  int x1_old = block1->x();
+  int y1_old = block1->y();
+  int chip_width = design_.chip_width();
+
+  block1->set_x(target_x);
+  block1->set_y(target_y);
+  if (block2) {
+    block2->set_x(x1_old);
+    block2->set_y(y1_old);
+  }
+
+  for (auto& info : net_infos) {
+    Net* net = info.net;
+
+    if (info.has_b1 && info.has_b2) {
+      net->CalcCachedBoundingBox();
+    } else if (info.has_b1) {
+      net->UpdateCachedBoundingBox(block1, x1_old, y1_old);
+    } else if (block2 && info.has_b2) {
+      net->UpdateCachedBoundingBox(block2, target_x, target_y);
+    }
+  }
+
+  grid_graph_[y1_old * chip_width + x1_old] = block2;
+  grid_graph_[target_y * chip_width + target_x] = block1;
+
+  UpdateState(affected_nets, +1);
+}
+
+void Placer::UpdateParameters(double& temperature, double& region_prob, int& moves_per_temperature, double& range_limiter, double initial_temperature,
+                              const double& acceptance_rate) {
+  // ------------- Moves Per Temperature -------------
+  if (acceptance_rate > 0.85 || acceptance_rate < 0.05) {
+    int new_moves = static_cast<int>(moves_per_temperature * config_.moves_scale_down);
+    moves_per_temperature = std::max(new_moves, config_.min_moves_per_temp);
+  } else {
+    int new_moves = static_cast<int>(moves_per_temperature * config_.moves_scale_up);
+    moves_per_temperature = std::min(new_moves, config_.max_moves_per_temp);
+  }
+
+  // ------------- Optimal Region Probability -------------
+  if (acceptance_rate > 0.85 || acceptance_rate < 0.10) {
+    region_prob -= config_.region_prob_step_down;
+  } else {
+    region_prob += config_.region_prob_step_down;
+  }
+
+  region_prob = std::max(config_.min_region_prob, std::min(region_prob, config_.max_region_prob));
+
+  // ------------- Temperature -------------
+  double alpha;
+  if (acceptance_rate > 0.96) {
+    alpha = 0.5;
+  } else if (acceptance_rate > 0.8) {
+    alpha = 0.85;
+  } else if (acceptance_rate > 0.15) {
+    alpha = 0.9;
+  } else {
+    alpha = 0.85;
+  }
+
+  temperature *= alpha;
+
+  //  ------------- Range Limiter -------------
+  // double scale_factor = temperature / initial_temperature;
+  // double new_range_limiter = std::sqrt(std::max(scale_factor, 1e-8));
+  // range_limiter = std::max(0.01, std::min(new_range_limiter, 1.0));
+  const double beta = 0.35;
+  double scale_factor = temperature / initial_temperature;
+  if (scale_factor < 1e-8) scale_factor = 1e-8;
+
+  double new_range_limiter = std::pow(scale_factor, beta);
+
+  if (new_range_limiter < config_.min_range_limiter) new_range_limiter = config_.min_range_limiter;
+  if (new_range_limiter > config_.max_range_limiter) new_range_limiter = config_.max_range_limiter;
+  range_limiter = new_range_limiter;
 }
