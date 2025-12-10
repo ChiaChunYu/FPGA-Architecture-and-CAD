@@ -38,7 +38,7 @@ struct Config {
 
   // ---------- random seed ----------
   // 0 represnt use random_device
-  unsigned int random_seed = 42;
+  unsigned int random_seed = 7777;
 };
 
 struct State {
