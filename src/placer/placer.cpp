@@ -83,9 +83,6 @@ void Placer::Run() {
       break;
     }
 
-    double elapsed_sec = elapsed.count();
-    double time_ratio = elapsed_sec / config_.time_limit_seconds;
-
     int search_radius_x = std::max(1, static_cast<int>(std::round(current_range_limiter * chip_width)));
     int search_radius_y = std::max(1, static_cast<int>(std::round(current_range_limiter * chip_height)));
     int accepted_moves = 0;
@@ -370,13 +367,21 @@ void Placer::SwapPosition(LogicBlock* block1, LogicBlock* block2, int target_x, 
 
 void Placer::UpdateParameters(double& temperature, double& region_prob, int& moves_per_temperature, double& range_limiter, double initial_temperature,
                               const double& acceptance_rate) {
+  auto now = std::chrono::steady_clock::now();
+  std::chrono::duration<double> elapsed = now - start_time_;
+  double time_ratio = elapsed.count() / config_.time_limit_seconds;
+  
   // ------------- Moves Per Temperature -------------
-  if (acceptance_rate > 0.85 || acceptance_rate < 0.05) {
-    int new_moves = static_cast<int>(moves_per_temperature * config_.moves_scale_down);
-    moves_per_temperature = std::max(new_moves, config_.min_moves_per_temp);
+  if (time_ratio > 0.90) {
+    moves_per_temperature = config_.min_moves_per_temp;
   } else {
-    int new_moves = static_cast<int>(moves_per_temperature * config_.moves_scale_up);
-    moves_per_temperature = std::min(new_moves, config_.max_moves_per_temp);
+    if (acceptance_rate > 0.85 || acceptance_rate < 0.05) {
+      int new_moves = static_cast<int>(moves_per_temperature * config_.moves_scale_down);
+      moves_per_temperature = std::max(new_moves, config_.min_moves_per_temp);
+    } else {
+      int new_moves = static_cast<int>(moves_per_temperature * config_.moves_scale_up);
+      moves_per_temperature = std::min(new_moves, config_.max_moves_per_temp);
+    }
   }
 
   // ------------- Optimal Region Probability -------------
@@ -403,9 +408,6 @@ void Placer::UpdateParameters(double& temperature, double& region_prob, int& mov
   temperature *= alpha;
 
   //  ------------- Range Limiter -------------
-  // double scale_factor = temperature / initial_temperature;
-  // double new_range_limiter = std::sqrt(std::max(scale_factor, 1e-8));
-  // range_limiter = std::max(0.01, std::min(new_range_limiter, 1.0));
   const double beta = 0.35;
   double scale_factor = temperature / initial_temperature;
   if (scale_factor < 1e-8) scale_factor = 1e-8;

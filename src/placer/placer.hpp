@@ -20,9 +20,9 @@ struct Config {
   double region_prob_step_down = 0.02;
 
   // ---------- moves per temperature ----------
-  int initial_moves_per_temp = 80000;
-  int min_moves_per_temp = 50000;
-  int max_moves_per_temp = 100000;
+  int initial_moves_per_temp = 60000;
+  int min_moves_per_temp = 40000;
+  int max_moves_per_temp = 80000;
   double moves_scale_up = 1.2;
   double moves_scale_down = 0.8;
 
@@ -38,7 +38,7 @@ struct Config {
 
   // ---------- random seed ----------
   // 0 represnt use random_device
-  unsigned int random_seed = 0;
+  unsigned int random_seed = 42;
 };
 
 struct State {
@@ -48,10 +48,10 @@ struct State {
 };
 
 struct AffectedNetInfo {
-    Net* net;
-    bool has_b1;
-    bool has_b2;
-  };
+  Net* net;
+  bool has_b1;
+  bool has_b2;
+};
 
 class Placer {
  public:
