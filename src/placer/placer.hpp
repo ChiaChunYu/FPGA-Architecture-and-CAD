@@ -26,7 +26,7 @@ struct Config {
   double moves_scale_up = 1.2;
   double moves_scale_down = 0.8;
 
-  // ---------- range limiter (Previously window_scale) ----------
+  // ---------- range limiter ----------
   double initial_range_limiter = 1.0;
   double min_range_limiter = 0.01;
   double max_range_limiter = 1.0;
